@@ -11,7 +11,9 @@ SubwordTokenizer
 import os
 from typing import List
 from fastcore.foundation import L
-from fastcore.utils import parallel_gen, compose
+from fastcore.utils import parallel_gen, compose, store_attr
+from fastcore.transform import Transform
+from fastcore.meta import delegates
 from fastprogress import progress_bar
 from pathlib import Path
 from sentencepiece import SentencePieceTrainer, SentencePieceProcessor
@@ -53,10 +55,62 @@ def lowercase(t, add_bos=True, add_eos=False):
 defaults.text_proc_rules = [lowercase]
 
 
+def tokenize_df(df, text_col:str, n_workers=defaults.cpus, rules: List=None, tok=None, res_col_name="text"):
+    "Tokenize text in df[text_col]"
+    # rules = L(ifnone(rules, defaults.text_proc_rules.copy()))
+    text = df[text_col].values
+    outputs = L(parallel_tokenize(text, tok, rules, n_workers=n_workers)
+            ).sorted().itemgot(1)
+    return Counter(outputs.concat())
+
 class BaseTokenizer():
     "A Tokenzier that splits on spaces"
     def __init__(self, split_char:str=' ', **kwargs): self.split_char = split_char
     def __call__(self, items: List): return (t.split(self.split_char) for t in items)
+
+class Tokenizer(Transform):
+    "Provides a consistent `Transform` interface to tokenizers operating on `DataFrame`s and folders"
+    input_types = (str, list, L, tuple, Path)
+    def __init__(self, tok, rules=None, counter=None, lengths=None, mode=None, sep=' '):
+        if isinstance(tok,type): tok=tok()
+        store_attr('tok,counter,lengths,mode,sep')
+        self.rules = defaults.text_proc_rules if rules is None else rules
+
+    @classmethod
+    @delegates(tokenize_df, keep=True)
+    def from_df(cls, text_cols, tok=None, rules=None, sep=' ', **kwargs):
+        if tok is None: tok = SentencePieceTokenizer()
+        res = cls(tok, rules=rules, mode='df')
+        res.kwargs,res.train_setup = merge({'tok': tok}, kwargs),False
+        res.text_cols,res.sep = text_cols,sep
+        return res
+
+    def setups(self, dsets):
+        if not self.mode == 'df' or not isinstance(dsets.items, pd.DataFrame): return
+        dsets.items,count = tokenize_df(dsets.items, self.text_cols, rules=self.rules, **self.kwargs)
+        if self.counter is None: self.counter = count
+        return dsets
+
+    def encodes(self, o:Path):
+        if self.mode=='folder' and str(o).startswith(str(self.path)):
+            tok = self.output_dir/o.relative_to(self.path)
+            return L(tok.read_text(encoding="utf-8").split(' '))
+        else: return self._tokenize1(o.read_text())
+
+    def encodes(self, o:str): return self._tokenize1(o)
+    def _tokenize1(self, o): return first(self.tok([compose(*self.rules)(o)]))
+
+    def get_lengths(self, items):
+        if self.lengths is None: return None
+        if self.mode == 'df':
+            if isinstance(items, pd.DataFrame) and 'text_lengths' in items.columns: return items['text_length'].values
+        if self.mode == 'folder':
+            try:
+                res = [self.lengths[str(Path(i).relative_to(self.path))] for i in items]
+                if len(res) == len(items): return res
+            except: return None
+
+    def decodes(self, o): return TitledStr(self.sep.join(o))
 
 
 class TokenizeWithRules:
@@ -82,13 +136,6 @@ def parallel_tokenize(items, tok=None, rules=None, n_workers=defaults.cpus, **kw
     return parallel_gen(TokenizeWithRules, items, tok=tok, rules=rules, n_workers=n_workers, **kwargs)
 
 
-def tokenize_df(df, text_col:str, n_workers=defaults.cpus, rules: List=None, tok=None, res_col_name="text"):
-    "Tokenize text in df[text_col]"
-    # rules = L(ifnone(rules, defaults.text_proc_rules.copy()))
-    text = df[text_col].values
-    outputs = L(parallel_tokenize(text, tok, rules, n_workers=n_workers)
-            ).sorted().itemgot(1)
-    return Counter(outputs.concat())
 
 
 

@@ -7,7 +7,7 @@ from typing import Dict
 class Config:
     "Create config for save/load of datasets and models"
     config_path = Path(os.getenv('BIOTEXT_HOME', "~/.biotext")).expanduser()
-    config_file = config_path.joinpath('config.yml')
+    config_file = config_path/'config.yml'
 
     def __init__(self):
         self.config_path.mkdir(parents=True, exist_ok=True)
@@ -15,12 +15,18 @@ class Config:
             self.create_config()
         self.cfg = self.load_config()
 
+    def __getitem__(self,k):
+        k = k.lower()
+        if k not in self.cfg: k = f"path_{k}"
+        return Path(self.cfg[k])
+
     def create_config(self) -> None:
         "Create new config with default paths"
         config = {
-            'path_data': str(self.config_path.joinpath('data')),
-            'path_storage': str(self.config_path.joinpath('tmp')),
-            'path_model': str(self.config_path.joinpath('models'))
+            'path_data': str(self.config_path/'data'),
+            'path_storage': str(self.config_path/'tmp'),
+            'path_model': str(self.config_path/'models'),
+            'path_archive': str(self.config_path/'archive')
         }
         self.save_file(config)
 
@@ -34,5 +40,12 @@ class Config:
             config = yaml.safe_load(f)
             return config
 
+def path(fname: str = '.', c_key: str = 'archive') -> Path:
+    "Return local path where to download based on `c_key`"
+    local_path = Path.cwd()/('models' if c_key=='models' else 'data')/fname
+    if local_path.exists(): return local_path
+    return Config()[c_key]/fname
+
 if __name__ == "__main__":
     Config()
+    print(path(fname='wikitext-103', c_key='data'))

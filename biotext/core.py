@@ -10,8 +10,8 @@ SubwordTokenizer
 
 import os
 from typing import List
-from fastcore.foundation import L
-from fastcore.utils import parallel_gen, compose, store_attr
+from fastcore.foundation import L, first
+from fastcore.utils import parallel_gen, compose, store_attr, maps, merge
 from fastcore.transform import Transform
 from fastcore.meta import delegates
 from fastprogress import progress_bar
@@ -19,6 +19,7 @@ from pathlib import Path
 from sentencepiece import SentencePieceTrainer, SentencePieceProcessor
 from collections import Counter
 from types import SimpleNamespace
+import pandas as pd
 
 
 defaults = SimpleNamespace()
@@ -54,14 +55,28 @@ def lowercase(t, add_bos=True, add_eos=False):
 
 defaults.text_proc_rules = [lowercase]
 
+def _join_texts(df, mark_fields=False):
+    "Join texts in row `idx` of `df`, marking each field with `FLD` if `mark_fields=True`"
+    text_col = (f'{FLD} {1} ' if mark_fields else '' ) + df.iloc[:,0].astype(str)
+    for i in range(1,len(df.columns)):
+        text_col += (f' {FLD} {i+1} ' if mark_fields else ' ') + df.iloc[:,i].astype(str)
+    return text_col.values
 
-def tokenize_df(df, text_col:str, n_workers=defaults.cpus, rules: List=None, tok=None, res_col_name="text"):
+def tokenize_df(df, text_cols, mark_fields=None, n_workers=defaults.cpus, rules: List=None, tok=None, res_col_name="text"):
     "Tokenize text in df[text_col]"
-    # rules = L(ifnone(rules, defaults.text_proc_rules.copy()))
-    text = df[text_col].values
-    outputs = L(parallel_tokenize(text, tok, rules, n_workers=n_workers)
+    text_cols = [df.columns[c] if isinstance(c, int) else c for c in L(text_cols)]
+    #mark_fields defaults to False if there is one column of texts, True if there are multiple
+    if mark_fields is None: mark_fields = len(text_cols)>1
+    rules = L(ifnone(rules, defaults.text_proc_rules.copy()))
+    texts = _join_texts(df[text_cols], mark_fields=mark_fields)
+    outputs = L(parallel_tokenize(texts, tok, rules, n_workers=n_workers)
             ).sorted().itemgot(1)
-    return Counter(outputs.concat())
+
+    other_cols = df.columns[~df.columns.isin(text_cols)]
+    res = df[other_cols].copy()
+    res[res_col_name] = outputs
+    res[f'{res_col_name}_length'] = [len(o) for o in outputs]
+    return res,Counter(outputs.concat())
 
 class BaseTokenizer():
     "A Tokenzier that splits on spaces"

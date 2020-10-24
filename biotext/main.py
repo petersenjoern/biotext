@@ -3,12 +3,15 @@ Module to collect data and model
 """
 
 import os
-from data.external import Config, path
 import pandas as pd
-from fastcore.foundation import L, first
+from data.external import Config, path
 from fastai.text.data import TextDataLoaders
-from utils import *
-from model import AWD_LSTM
+from fastai.text.learner import language_model_learner
+from fastai.text.models.awdlstm import AWD_LSTM
+from fastai.metrics import Perplexity, accuracy
+from utils import TextDataLoadersInspector, pickle_save, pickle_load
+from model import awd_lstm_lm_config
+
 
 LOADER_RETRAIN = False
 FNAME = "wikitext-2"
@@ -16,6 +19,7 @@ VOCAB_SZ= 2000
 BS = 32
 SEQ_LEN = 72
 VALID_PCT = 0.1
+
 
 if __name__ == "__main__":
 
@@ -59,6 +63,14 @@ if __name__ == "__main__":
     TextDataLoadersInspector(dls)
     dls.show_batch(max_n=3)
 
+    learn = language_model_learner(
+        dls=dls,
+        arch=AWD_LSTM,
+        config=awd_lstm_lm_config,
+        pretrained=False,
+        drop_mult=0.3,
+        metrics=[accuracy, Perplexity()]).to_fp16()
+    print(learn.model)
 
 
 

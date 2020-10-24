@@ -8,11 +8,7 @@ import pandas as pd
 from fastcore.foundation import L, first
 from fastai.text.data import TextDataLoaders
 from utils import *
-
-# import torch
-# from torch.nn import functional as F
-# from torch.utils.data import DataLoader
-# import pytorch_lightning as pl
+from model import AWD_LSTM
 
 LOADER_RETRAIN = False
 FNAME = "wikitext-2"

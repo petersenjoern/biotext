@@ -1,14 +1,15 @@
 """
 Losely decoupled file for exploring library functionalities
 """
+
 from data.external import Config, path
 from core import tokenize_df, SentencePieceTokenizer, Tokenizer
 from fastcore.foundation import L, first
 import pandas as pd
 
-FNAME: str = "wikitext-2"
-VOCAB_SZ: int = 2000
-TEXT_COL: str = "text"
+FNAME = "wikitext-2"
+VOCAB_SZ = 2000
+TEXT_COL = "text"
 
 def apply_sentence_piecer(df, text_col:str='text', vocab_sz:int=200, print_len:int=40):
     "Apply SentencePieceTokenizer"

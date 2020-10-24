@@ -1,12 +1,11 @@
 """
 Module for Tokenizer
 
-BaseTokenizer
-SubwordTokenizer
+SentencePieceTokenizer wrapped in fastai Tokenizer()
 
 
 """
-## TODO: parallel tokenize to speedup 
+## TODO: CLEANUP ONLY NEEDED OBJECTS
 
 import os
 from typing import List
@@ -78,10 +77,7 @@ def tokenize_df(df, text_cols, mark_fields=None, n_workers=defaults.cpus, rules:
     res[f'{res_col_name}_length'] = [len(o) for o in outputs]
     return res,Counter(outputs.concat())
 
-class BaseTokenizer():
-    "A Tokenzier that splits on spaces"
-    def __init__(self, split_char:str=' ', **kwargs): self.split_char = split_char
-    def __call__(self, items: List): return (t.split(self.split_char) for t in items)
+
 
 class Tokenizer(Transform):
     "Provides a consistent `Transform` interface to tokenizers operating on `DataFrame`s and folders"

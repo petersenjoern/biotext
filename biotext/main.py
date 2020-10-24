@@ -5,7 +5,6 @@ Module to collect data and model
 import os
 from data.external import Config, path
 import pandas as pd
-from core import tokenize_df, SentencePieceTokenizer, Tokenizer
 from fastcore.foundation import L, first
 from fastai.text.data import TextDataLoaders
 from utils import *
@@ -42,22 +41,6 @@ if __name__ == "__main__":
     df_all = pd.concat([df_train, df_valid])
     df_all.columns = ["text"]
 
-    # Apply SentencePieceTokenizer
-    # txt = L(df_all['text'].tolist())
-    # sp = SentencePieceTokenizer(vocab_sz=1000)
-    # sp.setup(txt)
-    # print(next(iter(sp(txt[:2]))))
-
-    # Function to apply Tokenizer to df and get tokenizer results summary
-    # out,cnt=tokenize_df(df=df_all, text_cols="text", tok=SentencePieceTokenizer)
-    # print(out)
-    # print(cnt)
-
-    # Wrapper around Tokenizer (easy to use e.g. from_df)
-    # toke=Tokenizer.from_df(df=df_all, text_cols="text", tok=SentencePieceTokenizer())
-    # toke.tok.setup(L(toke.kwargs['df']['text'].tolist()))
-    # print(first(toke.tok(L(toke.kwargs['df']['text'].tolist()[:2]))))
-    # print(toke.__dict__)
 
     # Tokenize, Numericalize, Split, Shuffle, Offset by 1 (lm),Batch
     if LOADER_RETRAIN:
@@ -77,6 +60,8 @@ if __name__ == "__main__":
     else:
         dls = pickle_load(path_models_dl)
 
+    # TODO: move most of below to another module (utils to get dataloader verbose info)
+
     dls.show_batch(max_n=3)
     bt_train = dls[0].one_batch() # 0 for training 1 for valid
     bt_test = dls[1].one_batch() # returns one batch(tuple(x,y))
@@ -94,7 +79,3 @@ if __name__ == "__main__":
 
 
 
-
-    # TODO:
-    # Tokenizer in core.py
-    # DataLoader in data/core.py (batchify data, prepare for langauge model)

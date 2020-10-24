@@ -14,12 +14,12 @@ from utils import *
 # from torch.utils.data import DataLoader
 # import pytorch_lightning as pl
 
-LOADER_RETRAIN: bool = False
-FNAME: str = "wikitext-2"
-VOCAB_SZ: int = 2000
-BS: int = 32
-SEQ_LEN: int = 72
-VALID_PCT: float = 0.1
+LOADER_RETRAIN = False
+FNAME = "wikitext-2"
+VOCAB_SZ= 2000
+BS = 32
+SEQ_LEN = 72
+VALID_PCT = 0.1
 
 if __name__ == "__main__":
 
@@ -60,22 +60,9 @@ if __name__ == "__main__":
     else:
         dls = pickle_load(path_models_dl)
 
-    # TODO: move most of below to another module (utils to get dataloader verbose info)
-
+    TextDataLoadersInspector(dls)
     dls.show_batch(max_n=3)
-    bt_train = dls[0].one_batch() # 0 for training 1 for valid
-    bt_test = dls[1].one_batch() # returns one batch(tuple(x,y))
-    x,y=bt_train # returns tuple (x, y) each x,y has bs, seq_len
-    print(x.shape) # should match [bs, seq_len]
-    print(x[0]) # num for first batch of x
 
-    # Info about vocab and its frequency
-    # dls.vocab[:20]
-    # dls.counter
-    train_bt_1 = dls.decode_batch(dls[0].one_batch()) # decodes batch (num to text)
-    train_bt_2 = dls.decode_batch(dls[1].one_batch())
-    print(train_bt_1[0])
-    print(train_bt_2[0])
 
 
 

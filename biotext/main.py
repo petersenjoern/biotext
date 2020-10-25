@@ -17,13 +17,19 @@ from fastai.text.all import *
 # from fastai.text.models.awdlstm import AWD_LSTM
 from fastai.metrics import Perplexity, accuracy
 from fastai.data.external import URLs
-from fastai.callback import *
+from fastai.callback.tensorboard import *
 
 
+MODEL_NAME = "BIO_AWD_LSTM"
+LOADER_RETRAIN = True
 
-LOADER_RETRAIN = False
-FNAME = "wikitext-2"
-VOCAB_SZ= 2000
+FIT_LM_1_EPOCH = True
+LM_LR_FIND_1_EPOCH = True
+
+FIT_LM_FINE_TUNE = True
+LM_LR_FIND_FINE_TUNE = True
+
+FNAME = "wikitext-103"
 BS = 32
 SEQ_LEN = 72
 VALID_PCT = 0.1
@@ -53,7 +59,6 @@ if __name__ == "__main__":
 
     # Tokenize, Numericalize, Split, Shuffle, Offset by 1 (lm),Batch
     if LOADER_RETRAIN:
-        # tok = SubWordTok(vocab_sz=VOCAB_SZ)
         tok = SubWordTok()
         dls = TextDataLoaders.from_df(
             df=df_all,
@@ -69,7 +74,6 @@ if __name__ == "__main__":
             device=torch.device('cuda') #somehow not recognised
             )
         pickle_save(dls, path_models_dl)
-        LOADER_RETRAIN = False
     else:
         dls = pickle_load(path_models_dl)
 
@@ -80,8 +84,6 @@ if __name__ == "__main__":
 
     # Train Model
     # Init
-    tensorboard=URLs.LOCAL_PATH/'tmp'/'runs'/'init'
-    cbs=TensorBoardCallback(tensorboard, trace_model=False) # Trace has to be false, because of mixed precision (FP16)
     learn = language_model_learner(
         dls=dls,
         arch=AWD_LSTM,
@@ -91,18 +93,40 @@ if __name__ == "__main__":
         metrics=[accuracy, Perplexity()]
         ).to_fp16()
     print(learn.model)
-    # print(learn.lr_find())
-    # learn.fit_one_cycle(1, 6e-3, moms=(0.8,0.7,0.8), cbs=cbs)
-    # learn.save("awd_lstm_1_epoch")
+
+    if FIT_LM_1_EPOCH:
+        if LM_LR_FIND_1_EPOCH:
+            lr_min, lr_steep = learn.lr_find()
+
+        tensorboard=URLs.LOCAL_PATH/'tmp'/'runs'/f"{MODEL_NAME}_1_EPOCH"
+        cbs=TensorBoardCallback(tensorboard, trace_model=False) # Trace has to be false, because of mixed precision (FP16)
+        
+        if lr_min:
+            print(f"LM 1 Epoch lr_min is: {lr_min}")
+            learn.fit_one_cycle(1, lr_min, moms=(0.8,0.7,0.8), cbs=cbs)
+        else:
+            learn.fit_one_cycle(1, 2e-3, moms=(0.8,0.7,0.8), cbs=cbs)
+        learn.save(f"{MODEL_NAME}_1_EPOCH")
+
 
     # Continue in all layers
-    tensorboard=URLs.LOCAL_PATH/'tmp'/'runs'/'unfreeze'
-    cbs=TensorBoardCallback(tensorboard, trace_model=False) # Trace has to be false, because of mixed precision (FP16)
-    learn = learn.load("awd_lstm_1_epoch")
-    print(learn.lr_find())
-    # learn.unfreeze()
-    # learn.fit_one_cycle(10, 2e-3, moms=(0.8,0.7,0.8), cbs=cbs)
-    # learn.save("awd_lstm_fine_tune")
-    # learn.save_encoder("awd_lstm_fine_tune")
+    learn = learn.load(f"{MODEL_NAME}_1_EPOCH")
+    
+    if FIT_LM_FINE_TUNE:
+        if LM_LR_FIND_FINE_TUNE:
+            lr_min, lr_steep = learn.lr_find()
+
+        tensorboard=URLs.LOCAL_PATH/'tmp'/'runs'/f"{MODEL_NAME}_FINE_TUNE"
+        cbs=TensorBoardCallback(tensorboard, trace_model=False)
+        
+        learn.unfreeze()
+        if lr_min:
+            print(f"LM Fine Tune lr_min is: {lr_min}")
+            learn.fit_one_cycle(10, lr_min, moms=(0.8,0.7,0.8), cbs=cbs)
+        else:
+            learn.fit_one_cycle(10, 2e-3, moms=(0.8,0.7,0.8), cbs=cbs)
+
+        learn.save(f"{MODEL_NAME}_FINE_TUNE")
+        learn.save_encoder(f"{MODEL_NAME}_FINE_TUNE_ENCODER")
 
 

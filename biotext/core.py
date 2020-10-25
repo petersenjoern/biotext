@@ -8,17 +8,22 @@ SentencePieceTokenizer wrapped in fastai Tokenizer()
 ## TODO: CLEANUP ONLY NEEDED OBJECTS
 
 import os
+import pandas as pd
+
 from typing import List
+from pathlib import Path
+
+
+from sentencepiece import SentencePieceTrainer, SentencePieceProcessor
+from collections import Counter
+from types import SimpleNamespace
+
 from fastcore.foundation import L, first
 from fastcore.utils import parallel_gen, compose, store_attr, maps, merge
 from fastcore.transform import Transform
 from fastcore.meta import delegates
+
 from fastprogress import progress_bar
-from pathlib import Path
-from sentencepiece import SentencePieceTrainer, SentencePieceProcessor
-from collections import Counter
-from types import SimpleNamespace
-import pandas as pd
 
 
 defaults = SimpleNamespace()
@@ -90,7 +95,7 @@ class Tokenizer(Transform):
     @classmethod
     @delegates(tokenize_df, keep=True)
     def from_df(cls, text_cols, tok=None, rules=None, sep=' ', **kwargs):
-        if tok is None: tok = SentencePieceTokenizer()
+        if tok is None: tok = SubWordTok()
         res = cls(tok, rules=rules, mode='df')
         res.kwargs,res.train_setup = merge({'tok': tok}, kwargs),False
         res.text_cols,res.sep = text_cols,sep
@@ -142,15 +147,13 @@ def ifnone(a, b):
 
 def parallel_tokenize(items, tok=None, rules=None, n_workers=defaults.cpus, **kwargs):
     "Calls optional `setup` on `tok` before launching `TokenizeWithRules` using `parallel_gen"
-    if tok is None: tok = SentencePieceTokenizer()
+    if tok is None: tok = SubWordTok()
     if hasattr(tok, 'setup'): tok.setup(items, rules)
     return parallel_gen(TokenizeWithRules, items, tok=tok, rules=rules, n_workers=n_workers, **kwargs)
 
 
 
-
-
-class SentencePieceTokenizer():
+class SubWordTok():
     "SentencePiece tokenizer for `lang`"
     def __init__(self, lang='en', special_toks=None, sp_model=None, vocab_sz=None, max_vocab_sz=30000,
                  model_type='unigram', char_coverage=None, cache_dir='tmp'):

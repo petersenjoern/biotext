@@ -6,8 +6,9 @@ from fastcore.utils import store_attr
 from fastai.text.models.awdlstm import EmbeddingDropout, WeightDropout
 
 
-awd_lstm_lm_config = dict(emb_sz=400, n_hid=1152, n_layers=3, pad_token=1, bidir=False, output_p=0.1,
-                          hidden_p=0.15, input_p=0.25, embed_p=0.02, weight_p=0.2, tie_weights=True, out_bias=True)
+awd_lstm_lm_config = dict(
+    emb_sz=400, n_hid=1152, n_layers=3, pad_token=1, bidir=False, output_p=0.1,
+    hidden_p=0.15, input_p=0.25, embed_p=0.02, weight_p=0.2, tie_weights=True, out_bias=True)
 
 
 class AWD_LSTM(Module):

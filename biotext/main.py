@@ -21,7 +21,7 @@ from fastai.callback.tensorboard import *
 
 
 MODEL_NAME = "BIO_AWD_LSTM"
-LOADER_RETRAIN = True
+LOADER_RETRAIN = False
 
 FIT_LM_1_EPOCH = True
 LM_LR_FIND_1_EPOCH = True

@@ -21,7 +21,7 @@ from fastai.callback.tensorboard import *
 
 
 MODEL_NAME = "BIO_AWD_LSTM"
-LOADER_RETRAIN = False
+RETRAIN_DATA_LOADER = True
 
 FIT_LM_1_EPOCH = True
 LM_LR_FIND_1_EPOCH = True
@@ -29,7 +29,7 @@ LM_LR_FIND_1_EPOCH = True
 FIT_LM_FINE_TUNE = True
 LM_LR_FIND_FINE_TUNE = True
 
-FNAME = "wikitext-103"
+FNAME = "ct-gov"
 BS = 32
 SEQ_LEN = 72
 VALID_PCT = 0.1
@@ -46,22 +46,19 @@ if __name__ == "__main__":
     path_models_dl = path_models/'TextDataLoaders.pkl'
     
     # Path to the data
-    path_wikitext = path(FNAME, c_key="data")
-    path_wikitext_train = path_wikitext/'train.csv'
-    path_wikitext_valid = path_wikitext/'test.csv'
+    path_data = path(FNAME, c_key="data")
+    path_data_lm = path_data/'clinical_trial_descriptions.txt'
 
     # Load data
-    df_train = pd.read_csv(path_wikitext_train, header=None)
-    df_valid = pd.read_csv(path_wikitext_valid, header=None)
-    df_all = pd.concat([df_train, df_valid])
-    df_all.columns = ["text"]
+    df = pd.read_csv(path_data_lm, sep="\t", header=None)
+    df.columns = ["text"]
 
 
-    # Tokenize, Numericalize, Split, Shuffle, Offset by 1 (lm),Batch
-    if LOADER_RETRAIN:
+    # # Tokenize, Numericalize, Split, Shuffle, Offset by 1 (lm), Batch all in parallel (cpus)
+    if RETRAIN_DATA_LOADER:
         tok = SubWordTok()
         dls = TextDataLoaders.from_df(
-            df=df_all,
+            df=df,
             text_col="text",
             valid_pct=VALID_PCT,
             y_block=None,

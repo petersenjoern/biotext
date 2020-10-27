@@ -7,7 +7,7 @@ import torch
 import pandas as pd
 
 from data.external import Config, path
-from core import SubWordTok
+from core import SubWordTok, WordTokenizer
 from utils import TextDataLoadersInspector, pickle_save, pickle_load
 from model import awd_lstm_lm_config
 
@@ -21,10 +21,10 @@ from fastai.callback.tensorboard import *
 
 
 MODEL_NAME = "BIO_AWD_LSTM"
-RETRAIN_DATA_LOADER = True
+RETRAIN_DATA_LOADER = False
 
-FIT_LM_1_EPOCH = True
-LM_LR_FIND_1_EPOCH = True
+FIT_LM_1_EPOCH = False
+LM_LR_FIND_1_EPOCH = False
 
 FIT_LM_FINE_TUNE = True
 LM_LR_FIND_FINE_TUNE = True
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     
     # Path to the data
     path_data = path(FNAME, c_key="data")
-    path_data_lm = path_data/'clinical_trial_descriptions.txt'
+    path_data_lm = path_data/'clinical_trial_descriptions_sub.txt'
 
     # Load data
     df = pd.read_csv(path_data_lm, sep="\t", header=None)
@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
     # # Tokenize, Numericalize, Split, Shuffle, Offset by 1 (lm), Batch all in parallel (cpus)
     if RETRAIN_DATA_LOADER:
-        tok = SubWordTok()
+        tok = WordTokenizer()
         dls = TextDataLoaders.from_df(
             df=df,
             text_col="text",

@@ -59,6 +59,19 @@ def lowercase(t, add_bos=True, add_eos=False):
 
 defaults.text_proc_rules = [lowercase]
 
+
+def ifnone(a, b):
+    "`b` if `a` is None else `a`"
+    return b if a is None else a
+
+
+def parallel_tokenize(items, tok=None, rules=None, n_workers=defaults.cpus, **kwargs):
+    "Calls optional `setup` on `tok` before launching `TokenizeWithRules` using `parallel_gen"
+    if tok is None: tok = SubWordTok()
+    if hasattr(tok, 'setup'): tok.setup(items, rules)
+    return parallel_gen(TokenizeWithRules, items, tok=tok, rules=rules, n_workers=n_workers, **kwargs)
+
+
 def _join_texts(df, mark_fields=False):
     "Join texts in row `idx` of `df`, marking each field with `FLD` if `mark_fields=True`"
     text_col = (f'{FLD} {1} ' if mark_fields else '' ) + df.iloc[:,0].astype(str)
@@ -140,17 +153,18 @@ class TokenizeWithRules:
         return (L(o).map(self.post_f) for o in self.tok(maps(*self.rules, batch)))
 
 
-def ifnone(a, b):
-    "`b` if `a` is None else `a`"
-    return b if a is None else a
+class SpacyTokenizer():
+    "Spacy tokenizer for `lang`"
+    def __init__(self, lang='en', special_toks=None, buf_sz=5000):
+        self.special_toks = ifnone(special_toks, defaults.text_spec_tok)
+        nlp = spacy.blank(lang, disable=["parser", "tagger", "ner"])
+        for w in self.special_toks: nlp.tokenizer.add_special_case(w, [{ORTH: w}])
+        self.pipe,self.buf_sz = nlp.pipe,buf_sz
 
+    def __call__(self, items):
+        return (L(doc).attrgot('text') for doc in self.pipe(map(str,items), batch_size=self.buf_sz))
 
-def parallel_tokenize(items, tok=None, rules=None, n_workers=defaults.cpus, **kwargs):
-    "Calls optional `setup` on `tok` before launching `TokenizeWithRules` using `parallel_gen"
-    if tok is None: tok = SubWordTok()
-    if hasattr(tok, 'setup'): tok.setup(items, rules)
-    return parallel_gen(TokenizeWithRules, items, tok=tok, rules=rules, n_workers=n_workers, **kwargs)
-
+WordTokenizer = SpacyTokenizer
 
 
 class SubWordTok():

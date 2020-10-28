@@ -43,7 +43,6 @@ def num_cpus():
         return os.cpu_count()
 
 
-
 defaults.cpus = num_cpus()
 
 def replace_space(t):
@@ -94,7 +93,6 @@ def tokenize_df(df, text_cols, mark_fields=None, n_workers=defaults.cpus, rules:
     res[res_col_name] = outputs
     res[f'{res_col_name}_length'] = [len(o) for o in outputs]
     return res,Counter(outputs.concat())
-
 
 
 class Tokenizer(Transform):

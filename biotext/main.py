@@ -12,9 +12,6 @@ from utils import TextDataLoadersInspector, pickle_save, pickle_load
 from model import awd_lstm_lm_config
 
 from fastai.text.all import *
-# from fastai.text.data import TextDataLoaders
-# from fastai.text.learner import language_model_learner
-# from fastai.text.models.awdlstm import AWD_LSTM
 from fastai.metrics import Perplexity, accuracy
 from fastai.data.external import URLs
 from fastai.callback.tensorboard import *
@@ -48,8 +45,8 @@ if __name__ == "__main__":
     # Path to the data
     path_data = path(FNAME, c_key="data")
     path_data_lm = path_data/'clinical_trial_descriptions_sub.txt'
-
-    # Load data
+    
+    # Load lm data
     df = pd.read_csv(path_data_lm, sep="\t", header=None)
     df.columns = ["text"]
 
@@ -126,4 +123,4 @@ if __name__ == "__main__":
         learn.save(f"{MODEL_NAME}_FINE_TUNE")
         learn.save_encoder(f"{MODEL_NAME}_FINE_TUNE_ENCODER")
 
-
+    

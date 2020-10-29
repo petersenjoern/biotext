@@ -3,6 +3,7 @@
 import torch
 from fastai.text.all import *
 from utils import TextDataLoadersInspector
+from fastcore.utils import store_attr
 
 
 #%%
@@ -24,18 +25,22 @@ class Dataset:
     """Dataset for Pytorch (has to support indexing of data, hence __getitem__ and __len__).
     Input data is a list of file paths"""
     
-    def __init__(self, fns):
-        self.fns = fns
-        
+    def __init__(self, fns, **kwargs):
+        store_attr() # not need for self.fns = fns
+        # store the kwargs to self.kwargs[k] = v
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
     def __len__(self): 
         return len(self.fns)
     
     def __getitem__(self, i):
-        txt = self.fns[i].open().read()
-        return txt
+        x = self.fns[i].open().read()
+        y = self.fns[i].parent.name
+        return x, y
 
-    
-def random_splitting(valid_pct=0.2, seed=None):
+
+def RandomSplitter(valid_pct=0.2, seed=None):
     "Create function that splits items between train/val with valid_pct randomly."
     def _inner(o):
         if seed is not None: torch.manual_seed(seed)
@@ -46,13 +51,17 @@ def random_splitting(valid_pct=0.2, seed=None):
 
 
 #%%
-train, valid = random_splitting(valid_pct=0.1)(files) 
-train[0:5]
+## Split the files randomly into train/valid with valid_pct
+idx_train, idx_valid = RandomSplitter(valid_pct=0.1)(files)
+train, valid = files[idx_train], files[idx_valid]
+print(f"There are {len(train)} training and {len(valid)} validation examples")
 
-
-#%%
+## Get x and y for the files via Dataset class
 valid_ds = Dataset(valid)
-valid_ds[0]
+x,y = valid_ds[0]
+print(x, y)
+
+# valid_ds[0]
 
     # path = untar_data(URLs.IMDB)
     # print(path.ls())

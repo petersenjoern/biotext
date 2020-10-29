@@ -4,3 +4,4 @@ fastcore==1.2.2
 fastprogress==1.0.0
 sentencepiece==0.1.91
 tensorboard==2.3.0
+jupyterlab

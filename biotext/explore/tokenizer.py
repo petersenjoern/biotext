@@ -57,11 +57,12 @@ if __name__ == "__main__":
     vocab = apply_sentence_piecer(df_all, vocab_sz=VOCAB_SZ)
     print(vocab[:20])
 
-    out,cnt = func_tokenize_df_results(df_all, tok=SentencePieceTokenizer(vocab_sz=VOCAB_SZ))
+    tok=SentencePieceTokenizer(vocab_sz=VOCAB_SZ)
+    out,cnt = func_tokenize_df_results(df_all, tok=tok)
     print(out)
     print(cnt)
 
-    res, toke_obj = wrapper_tokenizer_class(df_all, tok=SentencePieceTokenizer(vocab_sz=VOCAB_SZ), print_len=20)
+    res, toke_obj = wrapper_tokenizer_class(df_all, tok=tok, print_len=20)
     print(res)
     print(toke_obj)
 

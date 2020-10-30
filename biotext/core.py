@@ -7,6 +7,8 @@ SentencePieceTokenizer wrapped in fastai Tokenizer()
 """
 ## TODO: CLEANUP ONLY NEEDED OBJECTS
 
+#%%
+
 import os
 import pandas as pd
 
@@ -25,16 +27,13 @@ from fastcore.meta import delegates
 
 from fastprogress import progress_bar
 
-
-defaults = SimpleNamespace()
-
-
+#%%
+## Set Variables
 UNK, PAD, BOS, EOS, FLD, TK_REP, TK_WREP, TK_UP, TK_MAJ = "xxunk xxpad xxbos xxeos xxfld xxrep xxwrep xxup xxmaj".split()
-defaults.text_spec_tok = [UNK, PAD, BOS, EOS, FLD, TK_REP, TK_WREP, TK_UP, TK_MAJ]
-
 eu_langs = ["bg", "cs", "da", "de", "el", "en", "es", "et", "fi", "fr", "ga", "hr", "hu",
             "it","lt","lv","mt","nl","pl","pt","ro","sk","sl","sv"] # all European langs
 
+#%% 
 def num_cpus():
     "Get number of cpus"
     try:
@@ -42,22 +41,89 @@ def num_cpus():
     except AttributeError: 
         return os.cpu_count()
 
-
-defaults.cpus = num_cpus()
-
 def replace_space(t):
     "Replace embedded spaces in a token with unicode line char to allow for split/join"
     return t.replace(' ', '▁')
-
-defaults.text_postproc_rules = [replace_space]
 
 
 def lowercase(t, add_bos=True, add_eos=False):
     "Converts `t` to lowercase"
     return (f'{BOS} ' if add_bos else '') + t.lower().strip() + (f' {EOS}' if add_eos else '')
 
+## Set defaults that are callable later on
+defaults = SimpleNamespace()
+defaults.text_spec_tok = [UNK, PAD, BOS, EOS, FLD, TK_REP, TK_WREP, TK_UP, TK_MAJ]
+defaults.cpus = num_cpus()
+defaults.text_postproc_rules = [replace_space]
 defaults.text_proc_rules = [lowercase]
 
+#%%
+
+def noop (x=None, *args, **kwargs):
+    "Do nothing"
+    return x
+
+def compose_tfmsx(x, tfms, is_enc=True, reverse=False, **kwargs):
+    "Apply all `func_nm` attribute of `tfms` on `x`, maybe in `reverse` order"
+    if reverse: tfms = reversed(tfms)
+    for f in tfms:
+        if not is_enc: f = f.decode
+        x = f(x, **kwargs)
+    return x
+
+class PipelineX:
+    "A pipeline of composed (for encode/decode) transforms, setup with types"
+    def __init__(self, funcs=None, split_idx=None):
+        self.split_idx,self.default = split_idx,None
+
+        if funcs is None: funcs = [] # funcs have to be a list
+
+        else:
+            if isinstance(funcs, Transform): # test if funcs is a single Transform obj
+                funcs = [funcs] # if so, return list with Transform obj
+            self.fs = L(ifnone(funcs,[noop])).map(mk_transform).sorted(key='order') #instantiate every Transformer
+
+    def __call__(self, o): return compose_tfmsx(o, tfms=self.fs, split_idx=self.split_idx)
+    def __repr__(self): return f"Pipeline: {' -> '.join([f.name for f in self.fs if f.name != 'noop'])}"
+
+    def decode  (self, o, full=True):
+        if full: return compose_tfms(o, tfms=self.fs, is_enc=False, reverse=True, split_idx=self.split_idx)
+        #Not full means we decode up to the point the item knows how to show itself.
+        for f in reversed(self.fs):
+            if self._is_showable(o): return o
+            o = f.decode(o, split_idx=self.split_idx)
+        return o
+
+#%%
+
+class DisplayedTransform(Transform):
+    "A transform with a `__repr__` that shows its attrs"
+
+    @property
+    def name(self): return f"{super().name} -- {getattr(self,'__stored_args__',{})}"
+
+
+class CategorizeX(DisplayedTransform):
+    "Reversible transform of category string to `vocab` id"
+    # loss_func,order=CrossEntropyLossFlat(),1
+    def __init__(self, vocab=None, sort=True, add_na=False):
+        if vocab is not None: vocab = CategoryMap(vocab, sort=sort, add_na=add_na)
+        store_attr()
+
+    def setups(self, dsets):
+        if self.vocab is None and dsets is not None: self.vocab = CategoryMap(dsets, sort=self.sort, add_na=self.add_na)
+        self.c = len(self.vocab)
+
+    def encodes(self, o):
+        try:
+            return TensorCategory(self.vocab.o2i[o])
+        except KeyError as e:
+            raise KeyError(f"Label '{o}' was not included in the training dataset") from e
+    def decodes(self, o): return Category      (self.vocab    [o])
+
+
+
+#%%
 
 def ifnone(a, b):
     "`b` if `a` is None else `a`"

@@ -22,7 +22,7 @@ from types import SimpleNamespace
 
 from fastai.data.core import TfmdDL, DataLoaders
 
-from fastcore.foundation import L, first, GetAttr
+from fastcore.foundation import L, first, GetAttr, mask2idxs
 from fastcore.utils import parallel_gen, compose, store_attr, maps, merge, add_props
 from fastcore.transform import Transform
 from fastcore.meta import delegates
@@ -64,6 +64,12 @@ defaults.text_proc_rules = [lowercase]
 def noop (x=None, *args, **kwargs):
     "Do nothing"
     return x
+
+def mk_transform(f):
+    "Convert function `f` to `Transform` if it isn't already one"
+    f = instantiate(f)
+    return f if isinstance(f,(Transform,Pipeline)) else Transform(f)
+
 
 def compose_tfmsx(x, tfms, is_enc=True, reverse=False, **kwargs):
     "Apply all `func_nm` attribute of `tfms` on `x`, maybe in `reverse` order"
@@ -161,7 +167,7 @@ class TfmdListsX(FilteredBase, L, GetAttr):
         super().__init__(items, use_list=use_list)
         if dl_type is not None: self._dl_type = dl_type
         self.splits = L([slice(None),[]] if splits is None else splits).map(mask2idxs)
-        if isinstance(tfms,TfmdLists): tfms = tfms.tfms
+        if isinstance(tfms,TfmdListsX): tfms = tfms.tfms
         if isinstance(tfms,Pipeline): do_setup=False
         self.tfms = Pipeline(tfms, split_idx=split_idx)
         store_attr('types,split_idx')

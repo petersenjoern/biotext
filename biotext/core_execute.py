@@ -46,3 +46,4 @@ d = tfms.decode(t)[:100] #executes .decodes() for each transformer, reversed ord
 
 # 
 TfmdListsX(files, [Tokenizer.from_folder(path), Numericalize])
+# %%

@@ -1,6 +1,6 @@
 #%%
 from fastai.text.all import *
-from core import PipelineX, CategorizeX
+from core import PipelineX, CategorizeX, TfmdListsX
 
 #%%
 
@@ -44,3 +44,5 @@ d = tfms.decode(t)[:100] #executes .decodes() for each transformer, reversed ord
 
 # %%
 
+# 
+TfmdListsX(files, [Tokenizer.from_folder(path), Numericalize])

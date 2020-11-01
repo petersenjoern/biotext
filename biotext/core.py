@@ -20,8 +20,10 @@ from sentencepiece import SentencePieceTrainer, SentencePieceProcessor
 from collections import Counter
 from types import SimpleNamespace
 
-from fastcore.foundation import L, first
-from fastcore.utils import parallel_gen, compose, store_attr, maps, merge
+from fastai.data.core import TfmdDL, DataLoaders
+
+from fastcore.foundation import L, first, GetAttr
+from fastcore.utils import parallel_gen, compose, store_attr, maps, merge, add_props
 from fastcore.transform import Transform
 from fastcore.meta import delegates
 
@@ -121,7 +123,51 @@ class CategorizeX(DisplayedTransform):
             raise KeyError(f"Label '{o}' was not included in the training dataset") from e
     def decodes(self, o): return Category      (self.vocab    [o])
 
+#%%
+class FilteredBase:
+    "Base class for lists with subsets"
+    _dl_type,_dbunch_type = TfmdDL,DataLoaders
+    def __init__(self, *args, dl_type=None, **kwargs):
+        if dl_type is not None: self._dl_type = dl_type
+        self.dataloaders = delegates(self._dl_type.__init__)(self.dataloaders)
+        super().__init__(*args, **kwargs)
 
+    @property
+    def n_subsets(self): return len(self.splits)
+    def _new(self, items, **kwargs): return super()._new(items, splits=self.splits, **kwargs)
+    def subset(self): raise NotImplemented
+
+    def dataloaders(self, bs=64, val_bs=None, shuffle_train=True, n=None, path='.', dl_type=None, dl_kwargs=None,
+                    device=None, **kwargs):
+        if device is None: device=default_device()
+        if dl_kwargs is None: dl_kwargs = [{}] * self.n_subsets
+        if dl_type is None: dl_type = self._dl_type
+        drop_last = kwargs.pop('drop_last', shuffle_train)
+        dl = dl_type(self.subset(0), bs=bs, shuffle=shuffle_train, drop_last=drop_last, n=n, device=device,
+                     **merge(kwargs, dl_kwargs[0]))
+        dls = [dl] + [dl.new(self.subset(i), bs=(bs if val_bs is None else val_bs), shuffle=False, drop_last=False,
+                             n=None, **dl_kwargs[i]) for i in range(1, self.n_subsets)]
+        return self._dbunch_type(*dls, path=path, device=device)
+
+FilteredBase.train,FilteredBase.valid = add_props(lambda i,x: x.subset(i))
+
+
+
+class TfmdListsX(FilteredBase, L, GetAttr):
+    "A `Pipeline` of `tfms` applied to a collection of `items`"
+    _default='tfms'
+    def __init__(self, items, tfms, use_list=None, do_setup=True, split_idx=None, train_setup=True,
+                 splits=None, types=None, verbose=False, dl_type=None):
+        super().__init__(items, use_list=use_list)
+        if dl_type is not None: self._dl_type = dl_type
+        self.splits = L([slice(None),[]] if splits is None else splits).map(mask2idxs)
+        if isinstance(tfms,TfmdLists): tfms = tfms.tfms
+        if isinstance(tfms,Pipeline): do_setup=False
+        self.tfms = Pipeline(tfms, split_idx=split_idx)
+        store_attr('types,split_idx')
+        if do_setup:
+            pv(f"Setting up {self.tfms}", verbose)
+            self.setup(train_setup=train_setup)
 
 #%%
 

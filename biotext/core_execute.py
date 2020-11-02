@@ -46,13 +46,40 @@ d = tfms.decode(t)[:100] #executes .decodes() for each transformer, reversed ord
 # TfmdLists requires from Pipeline the setup() and __call__(o) function
 # First thing TfmdLists does is to call its own def setup()
 # TfmdLists setup() will go to Pipeline and call its setup() where its beeing looped
-# over compose_tfmsx() which executes encodes() for each of the Pipeline elements
+# over compose_tfmsx() which executes encodes() for each of the Pipeline elements.
+# The transforms are in order, thus the items will be transformed based on
+# all the previous Transforms.
 # In summary, it does the above manual .setup() and .encodes() steps
+
 # However, in addition, it will add the transformed data .train / .valid (if valid is provided)
 
-
-tls = TfmdListsX(files, [Tokenizer.from_folder(path), Numericalize])
-tls.train[0].shape
+tls_x = TfmdListsX(
+    files,
+    [Tokenizer.from_folder(path), Numericalize]
+)
+tls_x.train[0].shape
 # %%
+# You need to pas the indices of the elements that are in the training set
+# and in the indices of the elements that are in the validation set.
+
+cut=int(len(files)*0.8)
+splits = [list(range(cut)), list(range(cut, len(files)))]
+
+tls_x = TfmdListsX(
+    files,
+    [Tokenizer.from_folder(path), Numericalize],
+    splits=splits
+)
+print(f"train_x: {tls_x.train[0][:20]}, valid_x: {tls_x.valid[0][:20]}")
+
+
+# %%
+tls_y = TfmdListsX(
+    files,
+    [parent_label, Categorize()],
+    splits=splits
+)
+print(f"train_y: {tls_y.train[:20]}, valid_y: {tls_y.valid[:20]}")
+
 
 # %%

@@ -20,11 +20,14 @@ from sentencepiece import SentencePieceTrainer, SentencePieceProcessor
 from collections import Counter
 from types import SimpleNamespace
 
+from fastai.imports import pv
 from fastai.data.core import TfmdDL, DataLoaders
+from fastai.data.transforms import CategoryMap, Category
+from fastai.torch_core import TensorCategory
 
-from fastcore.foundation import L, first, GetAttr, mask2idxs
-from fastcore.utils import parallel_gen, compose, store_attr, maps, merge, add_props
-from fastcore.transform import Transform
+from fastcore.foundation import L, first, GetAttr, mask2idxs, is_indexer
+from fastcore.utils import parallel_gen, compose, store_attr, maps, merge, add_props, is_listy
+from fastcore.transform import Transform, mk_transform
 from fastcore.meta import delegates
 
 from fastprogress import progress_bar
@@ -65,11 +68,6 @@ def noop (x=None, *args, **kwargs):
     "Do nothing"
     return x
 
-def mk_transform(f):
-    "Convert function `f` to `Transform` if it isn't already one"
-    f = instantiate(f)
-    return f if isinstance(f,(Transform,Pipeline)) else Transform(f)
-
 
 def compose_tfmsx(x, tfms, is_enc=True, reverse=False, **kwargs):
     "Apply all `func_nm` attribute of `tfms` on `x`, maybe in `reverse` order"
@@ -95,12 +93,24 @@ class PipelineX:
     def __repr__(self): return f"Pipeline: {' -> '.join([f.name for f in self.fs if f.name != 'noop'])}"
 
     def decode  (self, o, full=True):
-        if full: return compose_tfms(o, tfms=self.fs, is_enc=False, reverse=True, split_idx=self.split_idx)
+        if full: return compose_tfmsx(o, tfms=self.fs, is_enc=False, reverse=True, split_idx=self.split_idx)
         #Not full means we decode up to the point the item knows how to show itself.
         for f in reversed(self.fs):
             if self._is_showable(o): return o
             o = f.decode(o, split_idx=self.split_idx)
         return o
+
+    def setup(self, items=None, train_setup=False):
+        tfms = self.fs[:]
+        self.fs.clear()
+        for t in tfms:
+            self.add(t,items, train_setup)
+            print(t)
+    
+    def add(self,t, items=None, train_setup=False):
+        t.setup(items, train_setup)
+        self.fs.append(t)
+        print(self.fs)
 
 #%%
 
@@ -166,14 +176,51 @@ class TfmdListsX(FilteredBase, L, GetAttr):
                  splits=None, types=None, verbose=False, dl_type=None):
         super().__init__(items, use_list=use_list)
         if dl_type is not None: self._dl_type = dl_type
+
+        #potentially unused
         self.splits = L([slice(None),[]] if splits is None else splits).map(mask2idxs)
         if isinstance(tfms,TfmdListsX): tfms = tfms.tfms
-        if isinstance(tfms,Pipeline): do_setup=False
-        self.tfms = Pipeline(tfms, split_idx=split_idx)
+        if isinstance(tfms,PipelineX): do_setup=False
+
+
+        # This is relevant, equivalent to PipelineX
+        self.tfms = PipelineX(tfms, split_idx=split_idx)
+
         store_attr('types,split_idx')
         if do_setup:
             pv(f"Setting up {self.tfms}", verbose)
             self.setup(train_setup=train_setup)
+
+    def _new(self, items, split_idx=None, **kwargs):
+        split_idx = ifnone(split_idx,self.split_idx)
+        return super()._new(items, tfms=self.tfms, do_setup=False, types=self.types, split_idx=split_idx, **kwargs)
+    def subset(self, i): return self._new(self._get(self.splits[i]), split_idx=i)
+    def _after_item(self, o): return self.tfms(o)
+    def __repr__(self): return f"{self.__class__.__name__}: {self.items}\ntfms - {self.tfms.fs}"
+    def __iter__(self): return (self[i] for i in range(len(self)))
+    def show(self, o, **kwargs): return self.tfms.show(o, **kwargs)
+    def decode(self, o, **kwargs): return self.tfms.decode(o, **kwargs)
+    def __call__(self, o, **kwargs): return self.tfms.__call__(o, **kwargs)
+    def overlapping_splits(self): return L(Counter(self.splits.concat()).values()).filter(gt(1))
+    def new_empty(self): return self._new([])
+
+    def setup(self, train_setup=True):
+        self.tfms.setup(self, train_setup)
+        if len(self) != 0:
+            x = super().__getitem__(0) if self.splits is None else super().__getitem__(self.splits[0])[0]
+            self.types = []
+            for f in self.tfms.fs:
+                self.types.append(getattr(f, 'input_types', type(x)))
+                x = f(x)
+            self.types.append(type(x))
+        types = L(t if is_listy(t) else [t] for t in self.types).concat().unique()
+        self.pretty_types = '\n'.join([f'  - {t}' for t in types])
+
+    def __getitem__(self, idx):
+        res = super().__getitem__(idx)
+        if self._after_item is None: return res
+        return self._after_item(res) if is_indexer(idx) else res.map(self._after_item)
+
 
 #%%
 

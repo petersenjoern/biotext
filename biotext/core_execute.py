@@ -43,7 +43,16 @@ d = tfms.decode(t)[:100] #executes .decodes() for each transformer, reversed ord
 # for each Transform in order)
 
 # %%
+# TfmdLists requires from Pipeline the setup() and __call__(o) function
+# First thing TfmdLists does is to call its own def setup()
+# TfmdLists setup() will go to Pipeline and call its setup() where its beeing looped
+# over compose_tfmsx() which executes encodes() for each of the Pipeline elements
+# In summary, it does the above manual .setup() and .encodes() steps
+# However, in addition, it will add the transformed data .train / .valid (if valid is provided)
 
-# 
-TfmdListsX(files, [Tokenizer.from_folder(path), Numericalize])
+
+tls = TfmdListsX(files, [Tokenizer.from_folder(path), Numericalize])
+tls.train[0].shape
+# %%
+
 # %%

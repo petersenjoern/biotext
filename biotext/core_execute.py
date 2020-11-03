@@ -81,6 +81,12 @@ print(f"train_y: {tls_y.train[:20]}, valid_y: {tls_y.valid[:20]}")
 
 # %%
 ## Use Datasets (get both x and y in parallel transformed)
+tfms_x = [Tokenizer.from_folder(path), Numericalize]
+tfms_y = [parent_label, Categorize()]
+dsets = DatasetsX(files, [tfms_x, tfms_y], splits=splits)
+x,y = dsets.train[0]
+print(x[:20], y)
+
 
 # %%
 ## Explore different settings of dataloaders (after_item, before_batch, after_batch)

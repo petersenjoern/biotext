@@ -25,7 +25,7 @@ from fastai.data.core import TfmdDL, DataLoaders
 from fastai.data.transforms import CategoryMap, Category
 from fastai.torch_core import TensorCategory, default_device
 
-from fastcore.foundation import L, first, GetAttr, mask2idxs, is_indexer
+from fastcore.foundation import L, first, GetAttr, mask2idxs, is_indexer, docs
 from fastcore.utils import parallel_gen, compose, store_attr, maps, merge, add_props, is_listy
 from fastcore.transform import Transform, mk_transform
 from fastcore.meta import delegates
@@ -223,6 +223,67 @@ class TfmdListsX(FilteredBase, L, GetAttr):
 
 
 #%%
+
+
+@docs
+@delegates(TfmdLists)
+class DatasetsX(FilteredBase):
+    "A dataset that creates a tuple from each `tfms`, passed through `item_tfms`"
+    def __init__(self, items=None, tfms=None, tls=None, n_inp=None, dl_type=None, **kwargs):
+        super().__init__(dl_type=dl_type)
+        self.tls = L(tls if tls else [TfmdLists(items, t, **kwargs) for t in L(ifnone(tfms,[None]))])
+        self.n_inp = ifnone(n_inp, max(1, len(self.tls)-1))
+
+    def __getitem__(self, it):
+        res = tuple([tl[it] for tl in self.tls])
+        return res if is_indexer(it) else list(zip(*res))
+
+    def __getattr__(self,k): return gather_attrs(self, k, 'tls')
+    def __dir__(self): return super().__dir__() + gather_attr_names(self, 'tls')
+    def __len__(self): return len(self.tls[0])
+    def __iter__(self): return (self[i] for i in range(len(self)))
+    def __repr__(self): return coll_repr(self)
+    def decode(self, o, full=True): return tuple(tl.decode(o_, full=full) for o_,tl in zip(o,tuplify(self.tls, match=o)))
+    def subset(self, i): return type(self)(tls=L(tl.subset(i) for tl in self.tls), n_inp=self.n_inp)
+    def _new(self, items, *args, **kwargs): return super()._new(items, tfms=self.tfms, do_setup=False, **kwargs)
+    def overlapping_splits(self): return self.tls[0].overlapping_splits()
+    def new_empty(self): return type(self)(tls=[tl.new_empty() for tl in self.tls], n_inp=self.n_inp)
+    @property
+    def splits(self): return self.tls[0].splits
+    @property
+    def split_idx(self): return self.tls[0].tfms.split_idx
+    @property
+    def items(self): return self.tls[0].items
+    @items.setter
+    def items(self, v):
+        for tl in self.tls: tl.items = v
+
+    def show(self, o, ctx=None, **kwargs):
+        for o_,tl in zip(o,self.tls): ctx = tl.show(o_, ctx=ctx, **kwargs)
+        return ctx
+
+    @contextmanager
+    def set_split_idx(self, i):
+        old_split_idx = self.split_idx
+        for tl in self.tls: tl.tfms.split_idx = i
+        try: yield self
+        finally:
+            for tl in self.tls: tl.tfms.split_idx = old_split_idx
+
+    _docs=dict(
+        decode="Compose `decode` of all `tuple_tfms` then all `tfms` on `i`",
+        show="Show item `o` in `ctx`",
+        dataloaders="Get a `DataLoaders`",
+        overlapping_splits="All splits that are in more than one split",
+        subset="New `Datasets` that only includes subset `i`",
+        new_empty="Create a new empty version of the `self`, keeping only the transforms",
+        set_split_idx="Contextmanager to use the same `Datasets` with another `split_idx`"
+    )
+
+
+
+#%%
+
 
 def ifnone(a, b):
     "`b` if `a` is None else `a`"

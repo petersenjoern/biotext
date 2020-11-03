@@ -71,8 +71,6 @@ tls_x = TfmdListsX(
     splits=splits
 )
 print(f"train_x: {tls_x.train[0][:20]}, valid_x: {tls_x.valid[0][:20]}")
-
-
 # %%
 tls_y = TfmdListsX(
     files,
@@ -81,5 +79,14 @@ tls_y = TfmdListsX(
 )
 print(f"train_y: {tls_y.train[:20]}, valid_y: {tls_y.valid[:20]}")
 
+# %%
+## Use Datasets (get both x and y in parallel transformed)
 
 # %%
+## Explore different settings of dataloaders (after_item, before_batch, after_batch)
+
+
+
+#%%
+# Go back to the Tokenizer and explore its setup and encode
+# Create TokenizerX

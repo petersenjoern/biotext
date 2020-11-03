@@ -23,7 +23,7 @@ from types import SimpleNamespace
 from fastai.imports import pv
 from fastai.data.core import TfmdDL, DataLoaders
 from fastai.data.transforms import CategoryMap, Category
-from fastai.torch_core import TensorCategory
+from fastai.torch_core import TensorCategory, default_device
 
 from fastcore.foundation import L, first, GetAttr, mask2idxs, is_indexer
 from fastcore.utils import parallel_gen, compose, store_attr, maps, merge, add_props, is_listy

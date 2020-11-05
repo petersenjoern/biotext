@@ -17,6 +17,7 @@ from pathlib import Path
 
 
 from sentencepiece import SentencePieceTrainer, SentencePieceProcessor
+from contextlib import contextmanager,ExitStack
 from collections import Counter
 from types import SimpleNamespace
 
@@ -226,12 +227,12 @@ class TfmdListsX(FilteredBase, L, GetAttr):
 
 
 @docs
-@delegates(TfmdLists)
+@delegates(TfmdListsX)
 class DatasetsX(FilteredBase):
     "A dataset that creates a tuple from each `tfms`, passed through `item_tfms`"
     def __init__(self, items=None, tfms=None, tls=None, n_inp=None, dl_type=None, **kwargs):
         super().__init__(dl_type=dl_type)
-        self.tls = L(tls if tls else [TfmdLists(items, t, **kwargs) for t in L(ifnone(tfms,[None]))])
+        self.tls = L(tls if tls else [TfmdListsX(items, t, **kwargs) for t in L(ifnone(tfms,[None]))])
         self.n_inp = ifnone(n_inp, max(1, len(self.tls)-1))
 
     def __getitem__(self, it):

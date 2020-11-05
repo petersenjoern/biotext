@@ -1,6 +1,6 @@
 #%%
 from fastai.text.all import *
-from core import PipelineX, CategorizeX, TfmdListsX
+from core import PipelineX, CategorizeX, TfmdListsX, DatasetsX
 
 #%%
 
@@ -81,6 +81,9 @@ print(f"train_y: {tls_y.train[:20]}, valid_y: {tls_y.valid[:20]}")
 
 # %%
 ## Use Datasets (get both x and y in parallel transformed)
+cut=int(len(files)*0.8)
+splits = [list(range(cut)), list(range(cut, len(files)))]
+
 tfms_x = [Tokenizer.from_folder(path), Numericalize]
 tfms_y = [parent_label, Categorize()]
 dsets = DatasetsX(files, [tfms_x, tfms_y], splits=splits)

@@ -93,8 +93,7 @@ print(x[:20], y)
 
 # %%
 ## Explore different settings of dataloaders (after_item, before_batch, after_batch)
-
-
+dls = dsets.dataloaders(bs=32, before_batch=pad_input)
 
 #%%
 # Go back to the Tokenizer and explore its setup and encode

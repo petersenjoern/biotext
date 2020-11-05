@@ -28,7 +28,7 @@ from fastai.torch_core import TensorCategory, default_device
 
 from fastcore.foundation import L, first, GetAttr, mask2idxs, is_indexer, docs
 from fastcore.utils import parallel_gen, compose, store_attr, maps, merge, add_props, is_listy
-from fastcore.transform import Transform, mk_transform
+from fastcore.transform import Transform, mk_transform, gather_attrs
 from fastcore.meta import delegates
 
 from fastprogress import progress_bar

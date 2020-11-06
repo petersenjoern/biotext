@@ -1,6 +1,7 @@
 #%%
 from fastai.text.all import *
 from core import PipelineX, CategorizeX, TfmdListsX, DatasetsX
+from utils import TextDataLoadersInspector
 
 #%%
 
@@ -93,8 +94,28 @@ print(x[:20], y)
 
 # %%
 ## Explore different settings of dataloaders (after_item, before_batch, after_batch)
-dls = dsets.dataloaders(bs=32, before_batch=pad_input)
+dls = dsets.dataloaders(dl_type=SortedDL, before_batch=pad_input)
+bt_train = dls.loaders[0].one_batch()
+x,y = bt_train
+
+#%%
+## There are limitations with DatasetsX (not not propagating all values down)
+## Instead, this will work, however, the seq_len is not recognised
+
+tfms = [[Tokenizer.from_folder(path), Numericalize], [parent_label, Categorize]]
+files = get_text_files(path, folders=['train', 'test'])
+splits = GrandparentSplitter(valid_name='test')(files)
+dsets = Datasets(files, tfms, splits=splits)
+dls = dsets.dataloaders(bs=8, seq_len=80, dl_type=SortedDL, before_batch=pad_input)
+TextDataLoadersInspector(dls)
+## Have probably to use the DataBlock API with TextBlock to get the seq_len in
+
+#%%
+## Use TextBlock API to validate above hypothesis
 
 #%%
 # Go back to the Tokenizer and explore its setup and encode
 # Create TokenizerX
+
+#%%
+

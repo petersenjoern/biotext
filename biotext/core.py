@@ -321,22 +321,34 @@ def tokenize_df(df, text_cols, mark_fields=None, n_workers=defaults.cpus, rules:
     res[f'{res_col_name}_length'] = [len(o) for o in outputs]
     return res,Counter(outputs.concat())
 
-
-class Tokenizer(Transform):
+class TokenizerX(Transform):
     "Provides a consistent `Transform` interface to tokenizers operating on `DataFrame`s and folders"
     input_types = (str, list, L, tuple, Path)
     def __init__(self, tok, rules=None, counter=None, lengths=None, mode=None, sep=' '):
         if isinstance(tok,type): tok=tok()
         store_attr('tok,counter,lengths,mode,sep')
         self.rules = defaults.text_proc_rules if rules is None else rules
+        print(self.rules)
+        print(tok)
 
     @classmethod
     @delegates(tokenize_df, keep=True)
     def from_df(cls, text_cols, tok=None, rules=None, sep=' ', **kwargs):
-        if tok is None: tok = SubWordTok()
+        if tok is None: tok = WordTokenizer()
         res = cls(tok, rules=rules, mode='df')
         res.kwargs,res.train_setup = merge({'tok': tok}, kwargs),False
         res.text_cols,res.sep = text_cols,sep
+        return res
+
+    @classmethod
+    @delegates(tokenize_folder, keep=True)
+    def from_folder(cls, path, tok=None, rules=None, **kwargs):
+        path = Path(path)
+        if tok is None: tok = WordTokenizer()
+        output_dir = tokenize_folder(path, tok=tok, rules=rules, **kwargs)
+        res = cls(tok, counter=load_pickle(output_dir/fn_counter_pkl),
+                  lengths=load_pickle(output_dir/fn_lengths_pkl), rules=rules, mode='folder')
+        res.path,res.output_dir = path,output_dir
         return res
 
     def setups(self, dsets):
@@ -365,6 +377,7 @@ class Tokenizer(Transform):
             except: return None
 
     def decodes(self, o): return TitledStr(self.sep.join(o))
+
 
 
 class TokenizeWithRules:

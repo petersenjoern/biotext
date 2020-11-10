@@ -1,6 +1,6 @@
 #%%
 from fastai.text.all import *
-from core import PipelineX, CategorizeX, TfmdListsX, DatasetsX
+from core import (PipelineX, CategorizeX, TfmdListsX, DatasetsX, TokenizerX)
 from utils import TextDataLoadersInspector
 
 #%%
@@ -112,11 +112,22 @@ TextDataLoadersInspector(dls)
 
 #%%
 ## Use TextBlock API to validate above hypothesis
+dls = DataBlock(
+    blocks=(TextBlock.from_folder(path), CategoryBlock),
+    get_y=parent_label,
+    get_items=partial(get_text_files, folders=["train", "test"]),
+    splitter=GrandparentSplitter(valid_name="test")
+).dataloaders(path, bs=8, seq_len=80)
+TextDataLoadersInspector(dls)
+## This is rejecting the hypothesis, seq_len is also not applied
 
 #%%
 # Go back to the Tokenizer and explore its setup and encode
 # Create TokenizerX
-
+# Setup of the Tokenizer on txts_inputs
+tok = TokenizerX.from_folder(path)
+tok.setup(txts_inputs)
+toks = txts_inputs.map(tok)
 
 #%%
 

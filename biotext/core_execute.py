@@ -125,9 +125,12 @@ TextDataLoadersInspector(dls)
 # Go back to the Tokenizer and explore its setup and encode
 # Create TokenizerX
 # Setup of the Tokenizer on txts_inputs
+# Have to adjust the tokenizer to parse scientific biomedical text
+# rather than just the en internet text :)
 tok = TokenizerX.from_folder(path)
 tok.setup(txts_inputs)
 toks = txts_inputs.map(tok)
 
 #%%
-
+# next steps, run scispacy - observe how to parse ner targets
+# from dict structure to target structure

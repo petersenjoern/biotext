@@ -133,20 +133,21 @@ toks = txts_inputs.map(tok)
 
 #%%
 # next steps, align tokens and labels
+# similar to: https://github.com/LightTag/sequence-labeling-with-transformers/blob/master/notebooks/how-to-align-notebook.ipynb
 text = "Since PLETAL is extensively metabolized by cytochrome P-450 isoenzymes, caution should be exercised when PLETAL is coadministered with inhibitors of C.P.A. such as ketoconazole and erythromycin or inhibitors of CYP2C19 such as omeprazole."
 annotations = [
-    {"start": 6, "end": 13, "tag": "drug"},
-    {"start": 43, "end": 60, "tag": "drug"},
-    {"start": 105, "end": 112, "tag": "drug"},
-    {"start": 164, "end": 177, "tag": "drug"},
-    {"start": 181, "end": 194, "tag": "drug"},
-    {"start": 211, "end": 219, "tag": "drug"},
-    {"start": 227, "end": 238, "tag": "drug"}
+    {"start": 6, "end": 13, "label": "drug"},
+    {"start": 43, "end": 60, "label": "drug"},
+    {"start": 105, "end": 112, "label": "drug"},
+    {"start": 164, "end": 177, "label": "drug"},
+    {"start": 181, "end": 194, "label": "drug"},
+    {"start": 211, "end": 219, "label": "drug"},
+    {"start": 227, "end": 238, "label": "drug"}
 ]
 
 for anno in annotations:
     # Show our annotations
-    print (text[anno['start']:anno['end']],anno['tag'])
+    print (text[anno['start']:anno['end']],anno['label'])
 
 #%%
 
@@ -158,5 +159,56 @@ tokenized_text :Encoding  =tokenized_batch[0]
 
 #%%
 
+tokens = tokenized_text.tokens
+aligned_labels = ["O"]*len(tokens) # Make a list to store our labels the same length as our tokens
+for anno in (annotations):
+    for char_ix in range(anno['start'],anno['end']):
+        token_ix = tokenized_text.char_to_token(char_ix)
+        if token_ix is not None: # White spaces have no token and will return None
+            aligned_labels[token_ix] = anno['label']
+for token,label in zip(tokens,aligned_labels):
+    print (token,"-",label)
 
 
+# %%
+# Accounting For Multi Token Annotations
+# BIOLU scheme, which will indicate if a token is the begining, inside, last token in an annotation or if it is not part of an annotation or if it is perfectly aligned with an annotation.
+def align_tokens_and_annotations_bilou(tokenized: Encoding, annotations):
+    tokens = tokenized.tokens
+    aligned_labels = ["O"] * len(
+        tokens
+    )  # Make a list to store our labels the same length as our tokens
+    for anno in annotations:
+        annotation_token_ix_set = (
+            set()
+        )  # A set that stores the token indices of the annotation
+        for char_ix in range(anno["start"], anno["end"]):
+
+            token_ix = tokenized.char_to_token(char_ix)
+            if token_ix is not None:
+                annotation_token_ix_set.add(token_ix)
+        if len(annotation_token_ix_set) == 1:
+            # If there is only one token
+            token_ix = annotation_token_ix_set.pop()
+            prefix = (
+                "U"  # This annotation spans one token so is prefixed with U for unique
+            )
+            aligned_labels[token_ix] = f"{prefix}-{anno['label']}"
+
+        else:
+
+            last_token_in_anno_ix = len(annotation_token_ix_set) - 1
+            for num, token_ix in enumerate(sorted(annotation_token_ix_set)):
+                if num == 0:
+                    prefix = "B"
+                elif num == last_token_in_anno_ix:
+                    prefix = "L"  # Its the last token
+                else:
+                    prefix = "I"  # We're inside of a multi token annotation
+                aligned_labels[token_ix] = f"{prefix}-{anno['label']}"
+    return aligned_labels
+
+
+labels = align_tokens_and_annotations_bilou(tokenized_text, annotations)
+for token, label in zip(tokens, labels):
+    print(token, "-", label)

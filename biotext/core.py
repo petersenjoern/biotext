@@ -14,7 +14,7 @@ import pandas as pd
 
 from typing import List
 from pathlib import Path
-
+from functools import partial
 
 from sentencepiece import SentencePieceTrainer, SentencePieceProcessor
 from contextlib import contextmanager,ExitStack
@@ -23,11 +23,11 @@ from types import SimpleNamespace
 
 from fastai.imports import pv
 from fastai.data.core import TfmdDL, DataLoaders
-from fastai.data.transforms import CategoryMap, Category
+from fastai.data.transforms import CategoryMap, Category, get_files
 from fastai.torch_core import TensorCategory, default_device
 
 from fastcore.foundation import L, first, GetAttr, mask2idxs, is_indexer, docs
-from fastcore.utils import parallel_gen, compose, store_attr, maps, merge, add_props, is_listy, tuplify
+from fastcore.utils import parallel_gen, compose, store_attr, maps, merge, add_props, is_listy, tuplify, save_pickle
 from fastcore.transform import Transform, mk_transform, gather_attrs
 from fastcore.meta import delegates
 
@@ -320,6 +320,40 @@ def tokenize_df(df, text_cols, mark_fields=None, n_workers=defaults.cpus, rules:
     res[res_col_name] = outputs
     res[f'{res_col_name}_length'] = [len(o) for o in outputs]
     return res,Counter(outputs.concat())
+
+fn_counter_pkl = 'counter.pkl'
+fn_lengths_pkl = 'lengths.pkl'
+
+def _tokenize_files(func, files, path, output_dir=None, output_names=None, n_workers=defaults.cpus, rules=None, tok=None,
+                   encoding='utf8', skip_if_exists=False):
+    "Tokenize text `files` in parallel using `n_workers`"
+    if tok is None: tok = WordTokenizer()
+    output_dir = Path(ifnone(output_dir, path.parent/f'{path.name}_tok'))
+    if skip_if_exists and output_dir.exists(): return output_dir
+    output_dir.mkdir(exist_ok=True)
+    if output_names is None: output_names = L(output_dir/f.relative_to(path) for f in files)
+    # rules = partial(Path.readlines, encoding=encoding) + L(ifnone(rules, defaults.text_proc_rules.copy()))
+    rules = partial(Path.read_text, encoding=encoding) + L(ifnone(rules, defaults.text_proc_rules.copy()))
+
+    lengths,counter = {},Counter()
+    for i,tok in parallel_tokenize(files, tok, rules, n_workers=n_workers):
+        out = func(i,output_dir)
+        out.mk_write(' '.join(tok))
+        lengths[str(files[i].relative_to(path))] = len(tok)
+        counter.update(tok)
+
+    save_pickle(output_dir/fn_lengths_pkl, lengths)
+    save_pickle(output_dir/fn_counter_pkl, counter)
+    return output_dir
+
+@delegates(_tokenize_files)
+def tokenize_folder(path, extensions=None, folders=None, output_dir=None, skip_if_exists=True, **kwargs):
+    "Tokenize text files in `path` in parallel using `n_workers`"
+    path,extensions = Path(path),ifnone(extensions, ['.txt'])
+    files = get_files(path, extensions=extensions, recurse=True, folders=folders)
+    def _f(i,output_dir): return output_dir/files[i].relative_to(path)
+    return _tokenize_files(_f, files, path, skip_if_exists=skip_if_exists, **kwargs)
+
 
 class TokenizerX(Transform):
     "Provides a consistent `Transform` interface to tokenizers operating on `DataFrame`s and folders"

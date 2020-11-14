@@ -132,5 +132,31 @@ tok.setup(txts_inputs)
 toks = txts_inputs.map(tok)
 
 #%%
-# next steps, run scispacy - observe how to parse ner targets
-# from dict structure to target structure
+# next steps, align tokens and labels
+text = "Since PLETAL is extensively metabolized by cytochrome P-450 isoenzymes, caution should be exercised when PLETAL is coadministered with inhibitors of C.P.A. such as ketoconazole and erythromycin or inhibitors of CYP2C19 such as omeprazole."
+annotations = [
+    {"start": 6, "end": 13, "tag": "drug"},
+    {"start": 43, "end": 60, "tag": "drug"},
+    {"start": 105, "end": 112, "tag": "drug"},
+    {"start": 164, "end": 177, "tag": "drug"},
+    {"start": 181, "end": 194, "tag": "drug"},
+    {"start": 211, "end": 219, "tag": "drug"},
+    {"start": 227, "end": 238, "tag": "drug"}
+]
+
+for anno in annotations:
+    # Show our annotations
+    print (text[anno['start']:anno['end']],anno['tag'])
+
+#%%
+
+from transformers import BertTokenizerFast, BatchEncoding
+from tokenizers import Encoding
+tokenizer = BertTokenizerFast.from_pretrained('bert-base-cased') # Load a pre-trained tokenizer
+tokenized_batch : BatchEncoding = tokenizer(text)
+tokenized_text :Encoding  =tokenized_batch[0]
+
+#%%
+
+
+

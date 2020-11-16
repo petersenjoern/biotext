@@ -2,6 +2,7 @@
 from fastai.text.all import *
 from core import (PipelineX, CategorizeX, TfmdListsX, DatasetsX, TokenizerX)
 from utils import TextDataLoadersInspector
+from data.external import Config, path
 
 #%%
 
@@ -127,9 +128,28 @@ TextDataLoadersInspector(dls)
 # Setup of the Tokenizer on txts_inputs
 # Have to adjust the tokenizer to parse scientific biomedical text
 # rather than just the en internet text :)
-tok = TokenizerX.from_folder(path)
+
+# Intiate Configuration (dir's)
+Config()
+
+# Path to the data
+path_data = path("ct-gov", c_key="data")
+path_data_ner = path_data/'train_processed_medical_ner_biotext.csv'
+
+df = pd.read_csv(path_data_ner)
+df.head()
+
+#%%
+txts_inputs = df["x"][:20]
+
+tokeniz = WordTokenizer()
+tok = TokenizerX.from_df(
+    df=df,
+    text_cols="x",
+    tok=tokeniz)
 tok.setup(txts_inputs)
 toks = txts_inputs.map(tok)
+toks[:5]
 
 
 

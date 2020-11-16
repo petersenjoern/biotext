@@ -1,6 +1,7 @@
 #%%
+import ast
 from fastai.text.all import *
-from core import (PipelineX, CategorizeX, TfmdListsX, DatasetsX, TokenizerX)
+from core import (PipelineX, CategorizeX, TfmdListsX, DatasetsX, TokenizerX, SubWordTok)
 from utils import TextDataLoadersInspector
 from data.external import Config, path
 
@@ -138,38 +139,52 @@ path_data_ner = path_data/'train_processed_medical_ner_biotext.csv'
 
 df = pd.read_csv(path_data_ner)
 df.head()
+df.iloc[8]
 
 #%%
 txts_inputs = df["x"][:20]
 
-tokeniz = WordTokenizer()
+from transformers import BertTokenizerFast, BatchEncoding
+tokenizer = BertTokenizerFast.from_pretrained('bert-base-cased')
+
+class TransformersTokenizer(Transform):
+    def __init__(self, tokenizer): self.tokenizer = tokenizer
+    def encodes(self, x): 
+        toks = self.tokenizer.tokenize(x)
+        return tensor(self.tokenizer.convert_tokens_to_ids(toks))
+    def decodes(self, x): return TitledStr(self.tokenizer.decode(x.cpu().numpy()))
+
+# tokeniz = WordTokenizer()
+tokeniz = TransformersTokenizer(tokenizer)
 tok = TokenizerX.from_df(
     df=df,
     text_cols="x",
-    tok=tokeniz)
-tok.setup(txts_inputs)
+    tok=tokenizer)
+# tok.setup(txts_inputs)
 toks = txts_inputs.map(tok)
-toks[:5]
 
 
+idx = 8
+x = toks[idx]
+y = ast.literal_eval(df.iloc[idx]["y"])
+x, y
 
 #%%
 # next steps, align tokens and labels
 # similar to: https://github.com/LightTag/sequence-labeling-with-transformers/blob/master/notebooks/how-to-align-notebook.ipynb
-text = "Since PLETAL is extensively metabolized by cytochrome P-450 isoenzymes, caution should be exercised when PLETAL is coadministered with inhibitors of C.P.A. such as ketoconazole and erythromycin or inhibitors of CYP2C19 such as omeprazole."
-annotations = [
-    {"start": 6, "end": 13, "label": "drug"},
-    {"start": 43, "end": 60, "label": "drug"},
-    {"start": 105, "end": 112, "label": "drug"},
-    {"start": 164, "end": 177, "label": "drug"},
-    {"start": 181, "end": 194, "label": "drug"},
-    {"start": 211, "end": 219, "label": "drug"},
-    {"start": 227, "end": 238, "label": "drug"}
-]
+text = "end-stage organ disease or medical condition with subsequent vision loss ( e.g. , diabetes , stroke )"
 
-for anno in annotations:
+for anno in y:
     # Show our annotations
-    print (text[anno['start']:anno['end']],anno['label'])
+    print(text[anno['start']:anno['end']],anno['label'])
+
+
+#%%
+aligned_labels = ["O"]*len(x) # Make a list to store our labels the same length as our tokens
+for anno in (y):
+    for char_ix in range(anno['start'],anno['end']):
+        
+
 
 #%%
 

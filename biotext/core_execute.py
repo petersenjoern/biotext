@@ -131,6 +131,8 @@ tok = TokenizerX.from_folder(path)
 tok.setup(txts_inputs)
 toks = txts_inputs.map(tok)
 
+
+
 #%%
 # next steps, align tokens and labels
 # similar to: https://github.com/LightTag/sequence-labeling-with-transformers/blob/master/notebooks/how-to-align-notebook.ipynb

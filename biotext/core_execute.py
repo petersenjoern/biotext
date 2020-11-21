@@ -165,29 +165,18 @@ tok_bert = TransformersTokenizer(tokenizer)
 tokenized_batch = tok_bert.setup(txts_inputs[10])
 tokenized_text = tokenized_batch[0]
 tokens = tokenized_text.tokens
-aligned_labels = ["O"]*len(tokens) # Make a list to store our labels the same length as our tokens
-
 annotation = ast.literal_eval(annotations[10])
-
-for anno in annotation:
-    for char_ix in range(int(anno['start']),int(anno['end'])):
-        print(char_ix)
-        token_ix = tokenized_text.char_to_token(char_ix)
-        if token_ix is not None: # White spaces have no token and will return None
-            aligned_labels[token_ix] = anno['label']
-for token,label in zip(tokens,aligned_labels):
-    print (token,"-",label)
 
 
 # %%
 # Accounting For Multi Token Annotations
 # BIOLU scheme, which will indicate if a token is the begining, inside, last token in an annotation or if it is not part of an annotation or if it is perfectly aligned with an annotation.
-def align_tokens_and_annotations_bilou(tokenized: Encoding, annotations):
+def align_tokens_and_annotations_bilou(tokenized, annotations):
     tokens = tokenized.tokens
     aligned_labels = ["O"] * len(
         tokens
     )  # Make a list to store our labels the same length as our tokens
-    for anno in annotations:
+    for anno in annotation:
         annotation_token_ix_set = (
             set()
         )  # A set that stores the token indices of the annotation

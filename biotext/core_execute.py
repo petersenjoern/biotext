@@ -143,7 +143,8 @@ df.iloc[8]
 
 #%%
 txts_inputs = df["x"][:200]
-txts_inputs
+annotations = df["y"][:200]
+txts_inputs[0],annotations[0]
 
 #%%
 from transformers import BertTokenizerFast, BatchEncoding
@@ -151,55 +152,26 @@ tokenizer = BertTokenizerFast.from_pretrained('bert-base-cased')
 
 class TransformersTokenizer(Transform):
     def __init__(self, tokenizer): self.tokenizer = tokenizer
+    def setup(self, text): return self.tokenizer(text)
     def encodes(self, x): 
         toks = self.tokenizer.tokenize(x)
-        return tensor(self.tokenizer.convert_tokens_to_ids(toks))
+        return toks.tokens
     def decodes(self, x): return TitledStr(self.tokenizer.decode(x.cpu().numpy()))
 
-
-cut=int(len(txts_inputs)*0.8)
-splits = [list(range(cut)), list(range(cut, len(txts_inputs)))]
-
-tls_x = TfmdListsX(
-    txts_inputs,
-    TransformersTokenizer(tokenizer),
-    splits=splits, dl_type=LMDataLoader
-)
-print(f"train_x: {tls_x.train[0]}, valid_x: {tls_x.valid[0]}")
-bs,sl = 8,1024
-dls = tls_x.dataloaders(bs=bs, seq_len=sl)
-
-#%%
 # next steps, align tokens and labels
 # similar to: https://github.com/LightTag/sequence-labeling-with-transformers/blob/master/notebooks/how-to-align-notebook.ipynb
-text = "end-stage organ disease or medical condition with subsequent vision loss ( e.g. , diabetes , stroke )"
 
-for anno in y:
-    # Show our annotations
-    print(text[anno['start']:anno['end']],anno['label'])
-
-
-#%%
-aligned_labels = ["O"]*len(x) # Make a list to store our labels the same length as our tokens
-for anno in (y):
-    for char_ix in range(anno['start'],anno['end']):
-        
-
-
-#%%
-
-from transformers import BertTokenizerFast, BatchEncoding
-from tokenizers import Encoding
-tokenizer = BertTokenizerFast.from_pretrained('bert-base-cased') # Load a pre-trained tokenizer
-tokenized_batch : BatchEncoding = tokenizer(text)
-tokenized_text :Encoding  =tokenized_batch[0]
-
-#%%
-
+tok_bert = TransformersTokenizer(tokenizer)
+tokenized_batch = tok_bert.setup(txts_inputs[10])
+tokenized_text = tokenized_batch[0]
 tokens = tokenized_text.tokens
 aligned_labels = ["O"]*len(tokens) # Make a list to store our labels the same length as our tokens
-for anno in (annotations):
-    for char_ix in range(anno['start'],anno['end']):
+
+annotation = ast.literal_eval(annotations[10])
+
+for anno in annotation:
+    for char_ix in range(int(anno['start']),int(anno['end'])):
+        print(char_ix)
         token_ix = tokenized_text.char_to_token(char_ix)
         if token_ix is not None: # White spaces have no token and will return None
             aligned_labels[token_ix] = anno['label']

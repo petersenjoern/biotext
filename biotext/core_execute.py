@@ -142,8 +142,10 @@ df.head()
 df.iloc[8]
 
 #%%
-txts_inputs = df["x"][:20]
+txts_inputs = df["x"][:200]
+txts_inputs
 
+#%%
 from transformers import BertTokenizerFast, BatchEncoding
 tokenizer = BertTokenizerFast.from_pretrained('bert-base-cased')
 
@@ -154,20 +156,18 @@ class TransformersTokenizer(Transform):
         return tensor(self.tokenizer.convert_tokens_to_ids(toks))
     def decodes(self, x): return TitledStr(self.tokenizer.decode(x.cpu().numpy()))
 
-# tokeniz = WordTokenizer()
-tokeniz = TransformersTokenizer(tokenizer)
-tok = TokenizerX.from_df(
-    df=df,
-    text_cols="x",
-    tok=tokenizer)
-# tok.setup(txts_inputs)
-toks = txts_inputs.map(tok)
 
+cut=int(len(txts_inputs)*0.8)
+splits = [list(range(cut)), list(range(cut, len(txts_inputs)))]
 
-idx = 8
-x = toks[idx]
-y = ast.literal_eval(df.iloc[idx]["y"])
-x, y
+tls_x = TfmdListsX(
+    txts_inputs,
+    TransformersTokenizer(tokenizer),
+    splits=splits, dl_type=LMDataLoader
+)
+print(f"train_x: {tls_x.train[0]}, valid_x: {tls_x.valid[0]}")
+bs,sl = 8,1024
+dls = tls_x.dataloaders(bs=bs, seq_len=sl)
 
 #%%
 # next steps, align tokens and labels

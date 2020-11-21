@@ -113,6 +113,23 @@ class PipelineX:
         self.fs.append(t)
         print(self.fs)
 
+    def show(self, o, ctx=None, **kwargs):
+        o = self.decode(o, full=False)
+        o1 = (o,) if not _is_tuple(o) else o
+        if hasattr(o, 'show'): ctx = o.show(ctx=ctx, **kwargs)
+        else:
+            for o_ in o1:
+                if hasattr(o_, 'show'): ctx = o_.show(ctx=ctx, **kwargs)
+        return ctx
+
+    def _is_showable(self, o):
+        if hasattr(o, 'show'): return True
+        if _is_tuple(o): return all(hasattr(o_, 'show') for o_ in o)
+        return False
+
+
+def _is_tuple(o): return isinstance(o, tuple) and not hasattr(o, '_fields')
+
 #%%
 
 class DisplayedTransform(Transform):

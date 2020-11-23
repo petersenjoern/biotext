@@ -18,13 +18,13 @@ from fastai.callback.tensorboard import *
 
 
 MODEL_NAME = "BIO_AWD_LSTM"
-RETRAIN_DATA_LOADER = False
+RETRAIN_DATA_LOADER = True
 
 FIT_LM_1_EPOCH = False
 LM_LR_FIND_1_EPOCH = False
 
-FIT_LM_FINE_TUNE = True
-LM_LR_FIND_FINE_TUNE = True
+FIT_LM_FINE_TUNE = False
+LM_LR_FIND_FINE_TUNE = False
 
 FNAME = "ct-gov"
 BS = 32

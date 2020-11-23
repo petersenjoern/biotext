@@ -3,5 +3,5 @@ venv/
 __pycache__
 tmp/
 models/
-biotext/data/spm.*
+spm.*
 .ipynb_checkpoints/

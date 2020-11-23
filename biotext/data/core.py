@@ -14,6 +14,10 @@ class SubWordTok():
         self.vocab_sz, self.max_vocab_sz = vocab_sz, max_vocab_sz
         self.char_coverage = char_coverage
         self.model_type = model_type
+        if self.cache_dir/'spm.model'.exists():
+            self.tok = spm.SentencePieceProcessor()
+            self.tok.Load(str(self.cache_dir/'spm.model'))
+
 
     def _get_vocab_sz(self, raw_text_path):
         "calc vocab sz and max vocab sz"
@@ -33,17 +37,23 @@ class SubWordTok():
         f"--input={raw_text_path} --vocab_size={vocab_sz} --model_prefix={self.cache_dir/'spm'}",
         f"--character_coverage={self.char_coverage} --model_type={self.model_type}",
         "--pad_id=-1 --bos_id=-1 --eos_id=-1 --hard_vocab_limit=false"]))
+        raw_text_path.unlink()
         return self.cache_dir/'spm.model'
 
 
     def setup(self, items):
         "In the setup a the train function is called with params"
-        sp_model = self.train(items)
+        # to make the function generic, items is a list which parses to
+        # an intermediate file (texts.out)
+        raw_text_path = self.cache_dir/'texts.out'
+        with open(raw_text_path, 'w') as f:
+            for txt in items:
+                f.write(f'{txt}\n')
+        sp_model = self.train(raw_text_path)
         self.tok = spm.SentencePieceProcessor()
         self.tok.Load(str(sp_model))
 
     def __call__(self, items):
         if self.tok is None: self.setup(items)
         for t in items: yield self.tok.EncodeAsPieces(t)
-        
         

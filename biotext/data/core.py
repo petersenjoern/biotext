@@ -2,35 +2,44 @@
 
 import sentencepiece as spm
 from pathlib import Path
-import io
+from collections import Counter
+
+
 
 
 class SubWordTok():
     "SentencePiece tokenizer"
-    def __init__(self) -> None:
-        pass
+    def __init__(self, cache_dir='tmp', vocab_sz=None, max_vocab_sz=30000) -> None:
+        self.cache_dir = Path(cache_dir)
+        self.vocab_sz, self.max_vocab_sz = vocab_sz, max_vocab_sz
+
+    def _get_vocab_sz(self, raw_text_path):
+        cnt = Counter()
+        with open(raw_text_path, 'r') as f:
+            for line in f.readlines():
+                cnt.update(line.split())
+                if len(cnt)//4 > self.max_vocab_sz: return self.max_vocab_sz
+        res = len(cnt)//4
+        while res%8 != 0: res+=1
+        return max(res,29)
+
 
     def train(self, raw_text_path):
         "Train a sentencepiece tokenizer on raw_text and save it"
-        model = io.BytesIO()
-        spm.SentencePieceTrainer.train(
-            input=raw_text_path,
-            model_prefix='m',
-            vocab_size=1000,
-            user_defined_symbols=['foo', 'bar'],
-            model_writer=model)
-
-        # path_out = raw_text_path.parent[0]/'spm.model'
-        # with open(path_out, 'wb') as f:
-        #     f.write(model.getvalue())
+        vocab_sz = self._get_vocab_sz(raw_text_path) if self.vocab_sz is None else self.vocab_sz
         
-        sp = spm.SentencePieceProcessor(model_proto=model.getvalue())
-        print(sp.encode('this is test'))
+        spm.SentencePieceTrainer.Train(" ".join([
+        f"--input={raw_text_path} --vocab_size={vocab_sz} --model_prefix={self.cache_dir/'spm'}"]))
+
+        self.tok = spm.SentencePieceProcessor()
+        self.tok.Load(str(self.cache_dir/'spm.model'))
+        return self.tok.EncodeAsPieces("test this out")
         
 
 
-raw_text_path = Path.cwd()/'botchan.txt'
+cache_dir = Path.cwd()
+raw_text_path = cache_dir/'botchan.txt'
 
-tok = SubWordTok()
+tok = SubWordTok(cache_dir)
 tok.train(raw_text_path)
 

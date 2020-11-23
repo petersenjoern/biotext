@@ -3,7 +3,8 @@
 import sentencepiece as spm
 from pathlib import Path
 from collections import Counter
-
+from fastprogress import progress_bar
+from fastcore.basics import *
 
 
 
@@ -23,17 +24,23 @@ class SubWordTok():
         while res%8 != 0: res+=1
         return max(res,29)
 
-
     def train(self, raw_text_path):
         "Train a sentencepiece tokenizer on raw_text and save it"
         vocab_sz = self._get_vocab_sz(raw_text_path) if self.vocab_sz is None else self.vocab_sz
-        
         spm.SentencePieceTrainer.Train(" ".join([
         f"--input={raw_text_path} --vocab_size={vocab_sz} --model_prefix={self.cache_dir/'spm'}"]))
+        return self.cache_dir/'spm.model'
 
+
+    def setup(self, items):
+        "In the setup a the train function is called with params"
+        sp_model = self.train(items)
         self.tok = spm.SentencePieceProcessor()
-        self.tok.Load(str(self.cache_dir/'spm.model'))
-        return self.tok.EncodeAsPieces("test this out")
+        self.tok.Load(str(sp_model))
+
+    def __call__(self, items):
+        if self.tok is None: self.setup(items)
+        for t in items: yield self.tok.EncodeAsPieces(t)
         
 
 
@@ -41,5 +48,7 @@ cache_dir = Path.cwd()
 raw_text_path = cache_dir/'botchan.txt'
 
 tok = SubWordTok(cache_dir)
-tok.train(raw_text_path)
+tok.setup(raw_text_path)
+for t in tok("this is a test, a test with many many words"):
+    print(t)
 

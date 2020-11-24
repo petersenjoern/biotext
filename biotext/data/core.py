@@ -14,7 +14,7 @@ class SubWordTok():
         self.vocab_sz, self.max_vocab_sz = vocab_sz, max_vocab_sz
         self.char_coverage = char_coverage
         self.model_type = model_type
-        if self.cache_dir/'spm.model'.exists():
+        if (self.cache_dir/'spm.model').exists():
             self.tok = spm.SentencePieceProcessor()
             self.tok.Load(str(self.cache_dir/'spm.model'))
 
@@ -45,13 +45,14 @@ class SubWordTok():
         "In the setup a the train function is called with params"
         # to make the function generic, items is a list which parses to
         # an intermediate file (texts.out)
-        raw_text_path = self.cache_dir/'texts.out'
-        with open(raw_text_path, 'w') as f:
-            for txt in items:
-                f.write(f'{txt}\n')
-        sp_model = self.train(raw_text_path)
-        self.tok = spm.SentencePieceProcessor()
-        self.tok.Load(str(sp_model))
+        if self.tok is None:
+            raw_text_path = self.cache_dir/'texts.out'
+            with open(raw_text_path, 'w') as f:
+                for txt in items:
+                    f.write(f'{txt}\n')
+            sp_model = self.train(raw_text_path)
+            self.tok = spm.SentencePieceProcessor()
+            self.tok.Load(str(sp_model))
 
     def __call__(self, items):
         if self.tok is None: self.setup(items)

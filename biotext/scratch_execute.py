@@ -1,6 +1,6 @@
 #%%
 from data.external import Config, path
-from data.core import SubWordTok
+from data.core import SubWordTok, Numericalize
 import pandas as pd
 
 FNAME = "ct-gov"
@@ -21,6 +21,19 @@ if __name__ == "__main__":
     # Init the tokenizer, train and save
     tok = SubWordTok(cache_dir=path_data)
     tok.setup(df["text"].tolist())
-    for t in tok("No translation can expect to equal, much less to excel, the original. The excellence of a translation can only be judged by noting how far it"):
-        print(t)
+    # for t in tok("No translation can expect to equal, much less to excel, the original. The excellence of a translation can only be judged by noting how far it".split()):
+    #     print(t)
+
+    num = Numericalize(min_freq=1)
+    num.setup(tok(df["text"].tolist()[:1]))
+
+    for t in tok("operator technique is not promising".split()):
+        print(type(t))
+
+    x=num.encode([t for t in tok("operator technique is not promising".split())])
+
+    print(x)
+
+
+    
 # %%

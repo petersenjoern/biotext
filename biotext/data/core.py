@@ -1,5 +1,6 @@
 #%%
 
+from typing import List
 import sentencepiece as spm
 from pathlib import Path
 from collections import Counter, defaultdict
@@ -45,11 +46,11 @@ class SubWordTok():
         return self.cache_dir/'spm.model'
 
 
-    def setup(self, items):
+    def setup(self, items: List, retrain=False):
         "In the setup a the train function is called with params"
         # to make the function generic, items is a list which parses to
         # an intermediate file (texts.out)
-        if self.tok is None:
+        if (self.tok is None) or retrain:
             raw_text_path = self.cache_dir/'texts.out'
             with open(raw_text_path, 'w') as f:
                 for txt in items:
@@ -58,12 +59,12 @@ class SubWordTok():
             self.tok = spm.SentencePieceProcessor()
             self.tok.Load(str(sp_model))
 
-    def __call__(self, items):
+    def __call__(self, items: List):
         if self.tok is None: self.setup(items)
         for t in items: yield self.tok.EncodeAsPieces(t)
         
 
-def make_vocab(count, min_freq=3, max_vocab=60000):
+def make_vocab(count:Counter, min_freq=3, max_vocab=60000):
     "Create a vocab of `max_vocab` size from `Counter` `count` with items present more than `min_freq`"
     vocab = [o for o,c in count.most_common(max_vocab) if c >= min_freq]
     vocab = vocab[:max_vocab]
@@ -104,9 +105,9 @@ class Numericalize():
     def encode(self, o): return tensor([self.o2i[o_] for o_ in o])
     def decode(self, o): return [self.vocab[o_] for o_ in o]
 
-num = Numericalize(min_freq=3)
+num = Numericalize(min_freq=1)
 num.setup("This is a test setup, lets see what happens".split())
-num.encode("This is a")
+num.encode("This is a".split())
         
 
 

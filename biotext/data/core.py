@@ -1,14 +1,12 @@
 #%%
 
-from typing import List, Generator, Iterator
-from types import GeneratorType
+from typing import List
 import sentencepiece as spm
 from pathlib import Path
 from collections import Counter, defaultdict
 import torch
 from torch import as_tensor,Tensor
 from torch.utils.data import Dataset
-from torchvision.transforms import Compose
 import pandas as pd
 import numpy as np
 from numpy import array, ndarray
@@ -16,6 +14,46 @@ import io
 import pickle
 import bz2
 import gzip
+
+
+def make_vocab(count:Counter, min_freq=3, max_vocab=60000):
+    "Create a vocab of `max_vocab` size from `Counter` `count` with items present more than `min_freq`"
+    vocab = [o for o,c in count.most_common(max_vocab) if c >= min_freq]
+    vocab = vocab[:max_vocab]
+    return vocab + [f'xxfake' for i in range(0, 8-len(vocab)%8)]
+
+
+def _array2tensor(x):
+    "if ndarray return torch.from_numpy."
+    if x.dtype==np.uint16: x = x.astype(np.float32)
+    return torch.from_numpy(x)
+
+def tensor(x, **kwargs):
+    "Like `torch.as_tensor`, but handle lists too, and can pass multiple vector elements directly."
+    res = (x if isinstance(x, Tensor)
+           else torch.tensor(x, **kwargs) if isinstance(x, (tuple,list))
+           else _array2tensor(x) if isinstance(x, ndarray)
+           else as_tensor(x.values, **kwargs) if isinstance(x, (pd.Series, pd.DataFrame))
+           else _array2tensor(array(x), **kwargs))
+    if res.dtype is torch.float64: return res.float()
+    return res
+
+def open_file(fn, mode='r'):
+    "Open a file, with optional compression if gz or bz2 suffix"
+    if isinstance(fn, io.IOBase): return fn
+    fn = Path(fn)
+    if   fn.suffix=='.bz2': return bz2.BZ2File(fn, mode)
+    elif fn.suffix=='.gz' : return gzip.GzipFile(fn, mode)
+    else: return open(fn,mode)
+
+def save_pickle(fn, o):
+    "Save a pickle file, to a file name or opened file"
+    with open_file(fn, 'wb') as f: pickle.dump(o, f)
+
+def load_pickle(fn):
+    "Load a pickle file from a file name or opened file"
+    with open_file(fn, 'rb') as f: return pickle.load(f)
+
 
 class SubWordTok():
     "SentencePiece tokenizer"
@@ -76,44 +114,6 @@ class SubWordTok():
         for t in items: yield self.tok.EncodeAsPieces(t)
         
 
-def make_vocab(count:Counter, min_freq=3, max_vocab=60000):
-    "Create a vocab of `max_vocab` size from `Counter` `count` with items present more than `min_freq`"
-    vocab = [o for o,c in count.most_common(max_vocab) if c >= min_freq]
-    vocab = vocab[:max_vocab]
-    return vocab + [f'xxfake' for i in range(0, 8-len(vocab)%8)]
-
-
-def _array2tensor(x):
-    "if ndarray return torch.from_numpy."
-    if x.dtype==np.uint16: x = x.astype(np.float32)
-    return torch.from_numpy(x)
-
-def tensor(x, **kwargs):
-    "Like `torch.as_tensor`, but handle lists too, and can pass multiple vector elements directly."
-    res = (x if isinstance(x, Tensor)
-           else torch.tensor(x, **kwargs) if isinstance(x, (tuple,list))
-           else _array2tensor(x) if isinstance(x, ndarray)
-           else as_tensor(x.values, **kwargs) if isinstance(x, (pd.Series, pd.DataFrame))
-           else _array2tensor(array(x), **kwargs))
-    if res.dtype is torch.float64: return res.float()
-    return res
-
-def open_file(fn, mode='r'):
-    "Open a file, with optional compression if gz or bz2 suffix"
-    if isinstance(fn, io.IOBase): return fn
-    fn = Path(fn)
-    if   fn.suffix=='.bz2': return bz2.BZ2File(fn, mode)
-    elif fn.suffix=='.gz' : return gzip.GzipFile(fn, mode)
-    else: return open(fn,mode)
-
-def save_pickle(fn, o):
-    "Save a pickle file, to a file name or opened file"
-    with open_file(fn, 'wb') as f: pickle.dump(o, f)
-
-def load_pickle(fn):
-    "Load a pickle file from a file name or opened file"
-    with open_file(fn, 'rb') as f: return pickle.load(f)
-
 
 class Numericalize():
     "transform of tokenized texts to numericalized ids (tensors)"
@@ -166,3 +166,4 @@ class Datasets(Dataset):
         item = [self.num(t) for t in self.tok([sample])][0]
 
         return item
+

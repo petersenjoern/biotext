@@ -1,7 +1,7 @@
 #%%
 from data.external import Config, path
 from data.core import SubWordTok, Numericalize, Datasets
-from torchvision.transforms import Compose
+from torch.utils.data import DataLoader
 import pandas as pd
 
 FNAME = "ct-gov"
@@ -50,6 +50,10 @@ if __name__ == "__main__":
     ds = Datasets(items=text, tok=tok, num=num)
     for i in range(len(ds)):
         print(ds[i])
+
+    dl = DataLoader(ds, batch_size=2, shuffle=False, num_workers=1)
+    for i_batch, sampled_batched in enumerate(dl):
+        print(i_batch, sampled_batched)
 
 
     

@@ -19,16 +19,13 @@ if __name__ == "__main__":
     df.columns = ["text"]
 
     # Init the tokenizer, train and save
-    tok = SubWordTok(cache_dir=path_data)
-    tok.setup(df["text"].tolist(), retrain=False)
-    # for t in tok("No translation can expect to equal, much less to excel, the original. The excellence of a translation can only be judged by noting how far it".split()):
-    #     print(t)
+    tok = SubWordTok(cache_dir=path_data, items=df["text"].tolist())
 
-    num = Numericalize(min_freq=1)
-    num.setup(tok(df["text"].tolist()[:2000]))
+    # Setup Numericalizer (with desired min f freq)
+    num = Numericalize(min_freq=1, dsets=tok(df["text"].tolist()[:2000]))
 
+    # Call tokenizer and numericalizer
     text = "operator technique is not promising and therefore clinically irrelevant".split()
-
     x=[num.encode(t) for t in tok(text)]
     print(x)
 

@@ -1,12 +1,14 @@
 #%%
 
-from typing import List
+from typing import List, Generator, Iterator
+from types import GeneratorType
 import sentencepiece as spm
 from pathlib import Path
 from collections import Counter, defaultdict
 import torch
 from torch import as_tensor,Tensor
 from torch.utils.data import Dataset
+from torchvision.transforms import Compose
 import pandas as pd
 import numpy as np
 from numpy import array, ndarray
@@ -30,6 +32,7 @@ class SubWordTok():
         if (self.cache_dir/'spm.model').exists():
             self.tok = spm.SentencePieceProcessor()
             self.tok.Load(str(self.cache_dir/'spm.model'))
+            print('reloaded tok file')
         else:
             self.setup(items)
 
@@ -126,6 +129,7 @@ class Numericalize():
     def _check_cache(self, dsets):
         if (self.cache_dir/'num.pkl').exists():
             self.o2i = load_pickle(self.cache_dir/'num.pkl')
+            print('reloaded num file')
         else:
             self.setup(dsets)
 
@@ -145,20 +149,20 @@ class Numericalize():
 class Datasets(Dataset):
     "create a dataset"
 
-    def __init__(self, items:List=None, transform=None):
+    def __init__(self, items:List=None, tok=None, num=None):
         self.items = items
-        self.transform = transform
+        self.tok = tok
+        self.num = num
     
     def __len__(self):
         return len(self.items)
 
     def __getitem__(self, idx):
+        """
+        tok __call__ requires a list('with a sentence').
+        num __call__/encode requires ['with', 'a', 'sentence'].
+        """
+        sample = self.items[idx]
+        item = [self.num(t) for t in self.tok([sample])][0]
 
-        return self.items[idx]
-
-data = "operator technique is not promising and therefore clinically irrelevant".split()
-
-ds=Datasets(data)
-
-for i in range(len(ds)):
-    print(ds[i])
+        return item

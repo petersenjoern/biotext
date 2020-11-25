@@ -135,6 +135,7 @@ class Numericalize():
             count = Counter(p for o in dsets for p in o)
             self.vocab = make_vocab(count, min_freq=self.min_freq, max_vocab=self.max_vocab)
             self.o2i = defaultdict(int, {v:k for k,v in enumerate(self.vocab) if v != 'xxfake'})
+            save_pickle(self.cache_dir/'num.pkl', self.o2i)
 
     def encode(self, o): return tensor([self.o2i[o_] for o_ in o])
     def __call__(self, o): return tensor([self.o2i[o_] for o_ in o])

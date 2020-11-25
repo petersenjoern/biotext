@@ -22,7 +22,11 @@ if __name__ == "__main__":
     tok = SubWordTok(cache_dir=path_data, items=df["text"].tolist())
 
     # Setup Numericalizer (with desired min f freq)
-    num = Numericalize(min_freq=1, dsets=tok(df["text"].tolist()[:2000]))
+    num = Numericalize(
+        cache_dir=path_data,
+        min_freq=1,
+        dsets=tok(df["text"].tolist()[:2000])
+    )
 
     # Call tokenizer and numericalizer
     text = "operator technique is not promising and therefore clinically irrelevant".split()

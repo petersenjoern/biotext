@@ -167,3 +167,6 @@ class Datasets(Dataset):
 
         return item
 
+class LMDataLoader:
+    def __init__(self, dataset, lens, bs, seq_len):
+        self.seq_len = seq_len

@@ -1,9 +1,15 @@
 #%%
 
 import itertools
-from typing import List, Generator
-from fastai.data.core import TfmdDL
-from fastcore.meta import delegates
+from types import SimpleNamespace
+from typing import List, Generator, Iterator, Sequence
+from torch.utils.data.dataloader import _MultiProcessingDataLoaderIter,_SingleProcessDataLoaderIter,_DatasetKind
+_loaders = (_MultiProcessingDataLoaderIter,_SingleProcessDataLoaderIter)
+import multiprocessing
+from torch.utils.data import get_worker_info
+from fastai.torch_core import default_device
+from torch.utils.data._utils.collate import default_collate,default_convert
+import typing
 import sentencepiece as spm
 from pathlib import Path
 from collections import Counter, defaultdict
@@ -21,6 +27,10 @@ import functools
 from fastcore.foundation import L
 import random
 import sys
+import math
+import os
+from contextlib import contextmanager
+
 
 
 def make_vocab(count:Counter, min_freq=3, max_vocab=60000):
@@ -181,6 +191,10 @@ def noop (x=None, *args, **kwargs):
     "Do nothing"
     return x
 
+def noops(self, x=None, *args, **kwargs):
+    "Do nothing (method)"
+    return x
+
 def is_listy(x):
     "`isinstance(x, (tuple,list,L,slice,Generator))`"
     return isinstance(x, (tuple,list,L,slice,Generator))
@@ -253,7 +267,181 @@ class Chunks:
         cl = self.cumlens[docidx]
         return docidx,i-cl
 
-class LMDataLoader(TfmdDL):
+
+def chunked(it, chunk_sz=None, drop_last=False, n_chunks=None):
+    "Return batches from iterator `it` of size `chunk_sz` (or return `n_chunks` total)"
+    assert bool(chunk_sz) ^ bool(n_chunks)
+    if n_chunks: chunk_sz = math.ceil(len(it)/n_chunks)
+    if not isinstance(it, Iterator): it = iter(it)
+    while True:
+        res = list(itertools.islice(it, chunk_sz))
+        if res and (len(res)==chunk_sz or not drop_last): yield res
+        if len(res)<chunk_sz: return
+
+
+class _InfMeta(type):
+    @property
+    def count(self): return itertools.count()
+    @property
+    def zeros(self): return itertools.cycle([0])
+    @property
+    def ones(self):  return itertools.cycle([1])
+    @property
+    def nones(self): return itertools.cycle([None])
+
+# Cell
+class Inf(metaclass=_InfMeta):
+    "Infinite lists"
+    pass
+
+def set_num_threads(nt):
+    "Get numpy (and others) to use `nt` threads"
+    # try: import mkl; mkl.set_num_threads(nt)
+    # except: pass
+    try: import torch; torch.set_num_threads(nt)
+    except: pass
+    os.environ['IPC_ENABLE']='1'
+    for o in ['OPENBLAS_NUM_THREADS','NUMEXPR_NUM_THREADS','OMP_NUM_THREADS','MKL_NUM_THREADS']:
+        os.environ[o] = str(nt)
+
+def set_seed(s, reproducible=False):
+    "Set random seed for `random`, `torch`, and `numpy` (where available)"
+    try: torch.manual_seed(s)
+    except NameError: pass
+    try: torch.cuda.manual_seed_all(s)
+    except NameError: pass
+    try: np.random.seed(s%(2**32-1))
+    except NameError: pass
+    random.seed(s)
+    if reproducible:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+def _wif(worker_id):
+    set_num_threads(1)
+    info = get_worker_info()
+    ds = info.dataset.d
+    ds.num_workers,ds.offs = info.num_workers,info.id
+    set_seed(info.seed)
+    ds.wif()
+
+def apply(func, x, *args, **kwargs):
+    "Apply `func` recursively to `x`, passing on args"
+    if is_listy(x): return type(x)([apply(func, o, *args, **kwargs) for o in x])
+    if isinstance(x,dict):  return {k: apply(func, v, *args, **kwargs) for k,v in x.items()}
+    res = func(x, *args, **kwargs)
+    return res if x is None else res
+
+
+defaults = SimpleNamespace()
+def to_device(b, device=None):
+    "Recursively put `b` on `device`."
+    if defaults.use_cuda==False: device='cpu'
+    elif device is None: device=default_device()
+    def _inner(o): return o.to(device, non_blocking=True) if isinstance(o,Tensor) else o.to_device(device) if hasattr(o, "to_device") else o
+    return apply(_inner, b)
+
+class _FakeLoader:
+    _IterableDataset_len_called,_auto_collation,collate_fn,drop_last = None,False,noops,False
+    _index_sampler,generator,prefetch_factor  = Inf.count,None,2
+    dataset_kind = _dataset_kind = _DatasetKind.Iterable
+    def __init__(self, d, pin_memory, num_workers, timeout, persistent_workers):
+        self.dataset,self.default,self.worker_init_fn = self,d,_wif
+        self.d = d
+        self.pin_memory = pin_memory
+        self.num_workers= num_workers
+        self.timeout=timeout
+        self.persistent_workers=persistent_workers
+
+    def __iter__(self): return iter(self.d.create_batches(self.d.sample()))
+
+    @property
+    def multiprocessing_context(self): return (None, multiprocessing)[self.num_workers>0]
+
+    @contextmanager
+    def no_multiproc(self):
+        old_num_workers = self.num_workers
+        try:
+            self.num_workers = 0
+            yield self.d
+        finally: self.num_workers = old_num_workers
+
+_collate_types = (ndarray, Tensor, typing.Mapping, str)
+
+def fa_collate(t):
+    "A replacement for PyTorch `default_collate` which maintains types and handles `Sequence`s"
+    b = t[0]
+    return (default_collate(t) if isinstance(b, _collate_types)
+            else type(t[0])([fa_collate(s) for s in zip(*t)]) if isinstance(b, Sequence)
+            else default_collate(t))
+
+def fa_convert(t):
+    "A replacement for PyTorch `default_convert` which maintains types and handles `Sequence`s"
+    return (default_convert(t) if isinstance(t, _collate_types)
+            else type(t)([fa_convert(s) for s in t]) if isinstance(t, Sequence)
+            else default_convert(t))
+
+class DataLoaderX:
+    _noop_methods = 'wif before_iter after_item before_batch after_batch after_iter'.split()
+    for o in _noop_methods: exec(f"def {o}(self, x=None, *args, **kwargs): return x")
+    def __init__(self, dataset=None, bs=None, num_workers=0, pin_memory=False, timeout=0, batch_size=None,
+    shuffle=False, drop_last=False, indexed=None, n=None, device=None, persistent_workers=False, **kwargs):
+        
+        if batch_size is not None: bs = batch_size # PyTorch compatibility
+        assert not (bs is None and drop_last)
+        if indexed is None: indexed = dataset is not None and hasattr(dataset,'__getitem__')
+        if n is None:
+            try: n = len(dataset)
+            except TypeError: pass
+        self.dataset = dataset
+        self.bs = bs
+        self.shuffle = shuffle
+        self.drop_last = drop_last
+        self.indexed = indexed
+        self.n = n
+        if num_workers is None: num_workers = 1
+        self.num_workers = num_workers
+        self.device = device
+        self.rng,self.num_workers,self.offs = random.Random(random.randint(0,2**32-1)),1,0
+        self.fake_l = _FakeLoader(self, pin_memory, num_workers, timeout, persistent_workers=persistent_workers)
+
+
+    @property
+    def prebatched(self): return self.bs is None
+    def randomize(self): self.rng = random.Random(self.rng.randint(0,2**32-1))
+    def chunkify(self, b): return b if self.prebatched else chunked(b, self.bs, self.drop_last)
+    
+    def create_batches(self, samps):
+        self.it = iter(self.dataset) if self.dataset is not None else None
+        res = filter(lambda o:o is not None, map(self.do_item, samps))
+        yield from map(self.do_batch, self.chunkify(res))
+
+    def do_item(self, s):
+        return self.after_item(self.create_item(s))
+
+    def get_idxs(self):
+        idxs = Inf.count if self.indexed else Inf.nones
+        if self.n is not None: idxs = list(itertools.islice(idxs, self.n))
+        if self.shuffle: idxs = self.shuffle_fn(idxs)
+        return idxs
+
+    def sample(self):
+        return (b for i,b in enumerate(self.__idxs) if i//(self.bs or 1)%self.num_workers==self.offs)
+
+    def do_batch(self, b): return self.retain(self.create_batch(self.before_batch(b)), b)
+    def retain(self, res, b):  return res
+    def create_batch(self, b): return (fa_collate,fa_convert)[self.prebatched](b)
+
+    def __iter__(self):
+        self.randomize()
+        self.__idxs=self.get_idxs() # called in context of main process (not workers/subprocesses)
+        for b in _loaders[self.fake_l.num_workers==0](self.fake_l):
+            if self.device is not None: b = to_device(b, self.device)
+            yield self.after_batch(b)
+        self.after_iter()
+        if hasattr(self, 'it'): del(self.it)
+
+class LMDataLoaderX(DataLoaderX):
     def __init__(self, dataset, cache=2, lens=None, bs=64, seq_len=72,
         num_workers=0, **kwargs):
         self.items = ReindexCollection(dataset, cache=cache, tfm=_maybe_first)
@@ -283,7 +471,9 @@ class LMDataLoader(TfmdDL):
 
 bs,sl = 4,3
 ints = L([0,1,2,3,4],[5,6,7,8,9,10],[11,12,13,14,15,16,17,18],[19,20],[21,22]).map(tensor)
-dl = LMDataLoader(ints, bs=bs, seq_len=sl)
+dl = LMDataLoaderX(ints, bs=bs, seq_len=sl)
 for x,y in dl:
     print(f'This is x: {x}')
     print(f'This is y: {y}')
+
+##TODO: look into fastai.data.load.DataLoader (__iter__)

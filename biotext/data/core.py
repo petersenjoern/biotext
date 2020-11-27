@@ -1,6 +1,9 @@
 #%%
 
-from typing import List
+import itertools
+from typing import List, Generator
+from fastai.data.core import TfmdDL
+from fastcore.meta import delegates
 import sentencepiece as spm
 from pathlib import Path
 from collections import Counter, defaultdict
@@ -14,6 +17,10 @@ import io
 import pickle
 import bz2
 import gzip
+import functools
+from fastcore.foundation import L
+import random
+import sys
 
 
 def make_vocab(count:Counter, min_freq=3, max_vocab=60000):
@@ -167,8 +174,116 @@ class Datasets(Dataset):
 
         return item
 
-class LMDataLoader:
-    def __init__(self, dataset, lens, bs, seq_len):
-        self.seq_len = seq_len
 
-        ## TODO: debug LMDataLoader
+def _maybe_first(o): return o[0] if isinstance(o, tuple) else o
+
+def noop (x=None, *args, **kwargs):
+    "Do nothing"
+    return x
+
+def is_listy(x):
+    "`isinstance(x, (tuple,list,L,slice,Generator))`"
+    return isinstance(x, (tuple,list,L,slice,Generator))
+
+def ifnone(a, b):
+    "`b` if `a` is None else `a`"
+    return b if a is None else a
+
+def round_multiple(x, mult, round_down=False):
+    "Round `x` to nearest multiple of `mult`"
+    def _f(x_): return (int if round_down else round)(x_/mult)*mult
+    res = L(x).map(_f)
+    return res if is_listy(x) else res[0]
+
+def concat(*ls):
+    "Concatenate tensors, arrays, lists, or tuples"
+    if not len(ls): return []
+    it = ls[0]
+    if isinstance(it,torch.Tensor): res = torch.cat(ls)
+    elif isinstance(it,ndarray): res = np.concatenate(ls)
+    else:
+        res = itertools.chain.from_iterable(map(L,ls))
+        if isinstance(it,(tuple,list)): res = type(it)(res)
+        else: res = L(res)
+    return res
+
+class ReindexCollection():
+    "Reindexes collection `coll` with indices `idxs` and optional LRU cache of size `cache`"
+    def __init__(self, coll, idxs=None, cache=None, tfm=noop):
+        if idxs is None: idxs = L.range(coll)
+        self.coll = coll
+        self.idxs = idxs
+        self.tfm = tfm
+        if cache is not None: self._get = functools.lru_cache(maxsize=cache)(self._get)
+
+    def _get(self, i): return self.tfm(self.coll[i])
+    def __getitem__(self, i): return self._get(self.idxs[i])
+    def __len__(self): return len(self.coll)
+    # def reindex(self, idxs): self.idxs = idxs
+    # def shuffle(self): random.shuffle(self.idxs)
+    # def cache_clear(self): self._get.cache_clear()
+    # def __getstate__(self): return {'coll': self.coll, 'idxs': self.idxs, 'cache': self.cache, 'tfm': self.tfm}
+    # def __setstate__(self, s): self.coll,self.idxs,self.cache,self.tfm = s['coll'],s['idxs'],s['cache'],s['tfm']
+
+
+class Chunks:
+    "Slice and int indexing into a list of lists"
+    def __init__(self, chunks, lens=None):
+        self.chunks = chunks
+        self.lens = L(map(len,self.chunks) if lens is None else lens)
+        self.cumlens = np.cumsum(0+self.lens)
+        self.totlen = self.cumlens[-1]
+
+    def __getitem__(self,i):
+        if isinstance(i,slice): return self.getslice(i)
+        di,idx = self.doc_idx(i)
+        return self.chunks[di][idx]
+
+    def getslice(self, i):
+        st_d,st_i = self.doc_idx(ifnone(i.start,0))
+        en_d,en_i = self.doc_idx(ifnone(i.stop,self.totlen+1))
+        res = [self.chunks[st_d][st_i:(en_i if st_d==en_d else sys.maxsize)]]
+        for b in range(st_d+1,en_d): res.append(self.chunks[b])
+        if st_d!=en_d and en_d<len(self.chunks): res.append(self.chunks[en_d][:en_i])
+        return concat(*res)
+
+    def doc_idx(self, i):
+        if i<0: i=self.totlen+i # count from end
+        docidx = np.searchsorted(self.cumlens, i+1)-1
+        cl = self.cumlens[docidx]
+        return docidx,i-cl
+
+class LMDataLoader(TfmdDL):
+    def __init__(self, dataset, cache=2, lens=None, bs=64, seq_len=72,
+        num_workers=0, **kwargs):
+        self.items = ReindexCollection(dataset, cache=cache, tfm=_maybe_first)
+        if lens is None: lens = [len(o) for o in self.items]
+        self.lens = lens
+        self.seq_len = seq_len
+        self.bs = bs
+
+        corpus = round_multiple(sum(lens)-1, bs, round_down=True)
+        self.bl = corpus//bs #bl stands for batch length
+        self.n_batches = self.bl//(seq_len) + int(self.bl%seq_len!=0)
+        self.last_len = self.bl - (self.n_batches-1)*seq_len
+        self.n = self.n_batches*bs
+        self.make_chunks()
+        super().__init__(dataset=dataset, bs=bs, num_workers=num_workers, **kwargs)
+
+    def make_chunks(self):
+        self.chunks = Chunks(self.items, self.lens)
+    
+    def create_item(self, seq):
+        if seq>=self.n: raise IndexError
+        sl = self.last_len if seq//self.bs==self.n_batches-1 else self.seq_len
+        st = (seq%self.bs)*self.bl + (seq//self.bs)*self.seq_len
+        txt = self.chunks[st : st+sl+1]
+        return tensor(txt[:-1]),txt[1:]
+
+
+bs,sl = 4,3
+ints = L([0,1,2,3,4],[5,6,7,8,9,10],[11,12,13,14,15,16,17,18],[19,20],[21,22]).map(tensor)
+dl = LMDataLoader(ints, bs=bs, seq_len=sl)
+for x,y in dl:
+    print(f'This is x: {x}')
+    print(f'This is y: {y}')

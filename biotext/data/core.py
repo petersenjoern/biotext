@@ -145,8 +145,13 @@ class Numericalize():
 
     def _check_cache(self, dsets):
         if (self.cache_dir/'num.pkl').exists():
-            self.o2i = load_pickle(self.cache_dir/'num.pkl')
-            print('reloaded num file')
+                self.o2i = load_pickle(self.cache_dir/'num.pkl')
+                print('reloaded num file')
+                
+                try:
+                    self.vocab = load_pickle(self.cache_dir/'vocab.pkl')
+                except FileNotFoundError:
+                    print('Cannot find vocab.pkl file')
         else:
             self.setup(dsets)
 
@@ -157,6 +162,7 @@ class Numericalize():
             self.vocab = make_vocab(count, min_freq=self.min_freq, max_vocab=self.max_vocab)
             self.o2i = defaultdict(int, {v:k for k,v in enumerate(self.vocab) if v != 'xxfake'})
             save_pickle(self.cache_dir/'num.pkl', self.o2i)
+            save_pickle(self.cache_dir/'vocab.pkl', self.vocab)
 
     def encode(self, o): return tensor([self.o2i[o_] for o_ in o])
     def __call__(self, o): return tensor([self.o2i[o_] for o_ in o])
@@ -469,11 +475,13 @@ class LMDataLoaderX(DataLoaderX):
         return tensor(txt[:-1]),txt[1:]
 
 
-bs,sl = 4,3
-ints = L([0,1,2,3,4],[5,6,7,8,9,10],[11,12,13,14,15,16,17,18],[19,20],[21,22]).map(tensor)
-dl = LMDataLoaderX(ints, bs=bs, seq_len=sl)
-for x,y in dl:
-    print(f'This is x: {x}')
-    print(f'This is y: {y}')
 
-##TODO: look into fastai.data.load.DataLoader (__iter__)
+
+# bs,sl = 4,3
+# ints = L([0,1,2,3,4],[5,6,7,8,9,10],[11,12,13,14,15,16,17,18],[19,20],[21,22]).map(tensor)
+# dl = LMDataLoaderX(ints, bs=bs, seq_len=sl)
+# for x,y in dl:
+#     print(f'This is x: {x}')
+#     print(f'This is y: {y}')
+
+# ##TODO: look into fastai.data.load.DataLoader (__iter__)

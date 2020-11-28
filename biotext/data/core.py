@@ -147,7 +147,7 @@ class Numericalize():
         if (self.cache_dir/'num.pkl').exists():
                 self.o2i = load_pickle(self.cache_dir/'num.pkl')
                 print('reloaded num file')
-                
+
                 try:
                     self.vocab = load_pickle(self.cache_dir/'vocab.pkl')
                 except FileNotFoundError:
@@ -387,6 +387,7 @@ def fa_convert(t):
             else type(t)([fa_convert(s) for s in t]) if isinstance(t, Sequence)
             else default_convert(t))
 
+#TODO: replace again with fastai DataLoader, this is only for inspection
 class DataLoaderX:
     _noop_methods = 'wif before_iter after_item before_batch after_batch after_iter'.split()
     for o in _noop_methods: exec(f"def {o}(self, x=None, *args, **kwargs): return x")
@@ -474,14 +475,3 @@ class LMDataLoaderX(DataLoaderX):
         txt = self.chunks[st : st+sl+1]
         return tensor(txt[:-1]),txt[1:]
 
-
-
-
-# bs,sl = 4,3
-# ints = L([0,1,2,3,4],[5,6,7,8,9,10],[11,12,13,14,15,16,17,18],[19,20],[21,22]).map(tensor)
-# dl = LMDataLoaderX(ints, bs=bs, seq_len=sl)
-# for x,y in dl:
-#     print(f'This is x: {x}')
-#     print(f'This is y: {y}')
-
-# ##TODO: look into fastai.data.load.DataLoader (__iter__)

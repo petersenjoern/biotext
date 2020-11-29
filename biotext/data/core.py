@@ -353,13 +353,15 @@ class _FakeLoader:
     dataset_kind = _dataset_kind = _DatasetKind.Iterable
     def __init__(self, d, pin_memory, num_workers, timeout, persistent_workers):
         self.dataset,self.default,self.worker_init_fn = self,d,_wif
-        self.d = d
+        self.d = d #This is the LMDataLoaderX(DataLoaderX) class
         self.pin_memory = pin_memory
         self.num_workers= num_workers
         self.timeout=timeout
         self.persistent_workers=persistent_workers
 
-    def __iter__(self): return iter(self.d.create_batches(self.d.sample()))
+    def __iter__(self):
+        print(f"3. iterate the yielded _loaders object, with create_batches")
+        return iter(self.d.create_batches(self.d.sample()))
 
     @property
     def multiprocessing_context(self): return (None, multiprocessing)[self.num_workers>0]
@@ -414,39 +416,52 @@ class DataLoaderX:
 
     @property
     def prebatched(self): return self.bs is None
-    def randomize(self): self.rng = random.Random(self.rng.randint(0,2**32-1))
-    def chunkify(self, b): return b if self.prebatched else chunked(b, self.bs, self.drop_last)
+    # def randomize(self): self.rng = random.Random(self.rng.randint(0,2**32-1))
+    def chunkify(self, b):
+        print(f"chunkify: {[b for b in chunked(b, self.bs, self.drop_last)]}")
+        return b if self.prebatched else chunked(b, self.bs, self.drop_last)
     
     def create_batches(self, samps):
+        print(f"5. create_batches: make iter(dataset)")
         self.it = iter(self.dataset) if self.dataset is not None else None
+        print(f"5. iter(dataset): {[t for t in self.it]}")
+        print(f"5. samples: {[s for s in samps]}")
         res = filter(lambda o:o is not None, map(self.do_item, samps))
+        print(f"print res: {[r for r in res]}")
         yield from map(self.do_batch, self.chunkify(res))
 
     def do_item(self, s):
         return self.after_item(self.create_item(s))
 
     def get_idxs(self):
+        print(f"1. create idxs from n")
+        print(f"1. n is {self.n}")
         idxs = Inf.count if self.indexed else Inf.nones
         if self.n is not None: idxs = list(itertools.islice(idxs, self.n))
         # if self.shuffle: idxs = self.shuffle_fn(idxs)
+        print(f"1. idxs are: {idxs}")
         return idxs
 
     def sample(self):
+        print(f"4. prepare sample")
+        print(f"4. {[b for i,b in enumerate(self.__idxs) if i//(self.bs or 1)%self.num_workers==self.offs]}")
         return (b for i,b in enumerate(self.__idxs) if i//(self.bs or 1)%self.num_workers==self.offs)
 
-    def do_batch(self, b): return self.retain(self.create_batch(self.before_batch(b)), b)
+    def do_batch(self, b):
+        print(f"do_batch: {self.create_batch(self.before_batch(b)), b}")
+        return self.retain(self.create_batch(self.before_batch(b)), b)
     def retain(self, res, b):  return res
     def create_batch(self, b): return (fa_collate,fa_convert)[self.prebatched](b)
 
     def __iter__(self):
         # self.randomize()
         self.__idxs=self.get_idxs() # called in context of main process (not workers/subprocesses)
-        print(self.__idxs)
+        print(f"2. create _loaders: {_loaders[self.fake_l.num_workers==0](self.fake_l)} and yield them")
         for b in _loaders[self.fake_l.num_workers==0](self.fake_l):
             if self.device is not None: b = to_device(b, self.device)
             yield self.after_batch(b)
-        self.after_iter()
-        if hasattr(self, 'it'): del(self.it)
+        # self.after_iter()
+        # if hasattr(self, 'it'): del(self.it)
 
 class LMDataLoaderX(DataLoaderX):
     def __init__(self, dataset, cache=2, lens=None, bs=64, seq_len=72,
@@ -473,5 +488,6 @@ class LMDataLoaderX(DataLoaderX):
         sl = self.last_len if seq//self.bs==self.n_batches-1 else self.seq_len
         st = (seq%self.bs)*self.bl + (seq//self.bs)*self.seq_len
         txt = self.chunks[st : st+sl+1]
+        print(f"6. create_item: {tensor(txt[:-1]),txt[1:]}")
         return tensor(txt[:-1]),txt[1:]
 

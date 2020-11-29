@@ -36,7 +36,7 @@ if __name__ == "__main__":
         "this is not a very long effort in this assessment",
         "this is a hba1c above 3"
     ]
-    text = df["text"].tolist()[:10]
+    text = df["text"].tolist()[:5]
 
     # call the tokenizer
     # for t in tok(text):
@@ -44,20 +44,20 @@ if __name__ == "__main__":
 
     # call the numericalizer based on tokenizer output
     x=[num.encode(t) for t in tok(text)]
-    print(x)
+    # print(x)
 
-    bs=4
-    sl=6
+    bs=2
+    sl=3
     ints = L([0,1,2,3,4],[5,6,7,8,9,10],[11,12,13,14,15,16,17,18],[19,20],[21,22]).map(tensor)
     ints = x
     dl = LMDataLoaderX(ints, bs=bs, seq_len=sl)
     for x,y in dl:
         print(f'This is x: {x}')
-        for tx in x:
-            print(f'This is x decoded: {num.decode(tx)}')
-        print(f'This is y: {y}')
-        for ty in y:
-            print(f'This is y decoded: {num.decode(ty)}')
+    #     for tx in x:
+    #         print(f'This is x decoded: {num.decode(tx)}')
+    #     print(f'This is y: {y}')
+    #     for ty in y:
+    #         print(f'This is y decoded: {num.decode(ty)}')
 
     # Abstract both into a class and do behind the scene with __getitem__
     # ds = Datasets(items=text, tok=tok, num=num)

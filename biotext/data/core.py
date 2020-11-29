@@ -412,7 +412,6 @@ class DataLoaderX:
         self.rng,self.num_workers,self.offs = random.Random(random.randint(0,2**32-1)),1,0
         self.fake_l = _FakeLoader(self, pin_memory, num_workers, timeout, persistent_workers=persistent_workers)
 
-
     @property
     def prebatched(self): return self.bs is None
     def randomize(self): self.rng = random.Random(self.rng.randint(0,2**32-1))
@@ -429,7 +428,7 @@ class DataLoaderX:
     def get_idxs(self):
         idxs = Inf.count if self.indexed else Inf.nones
         if self.n is not None: idxs = list(itertools.islice(idxs, self.n))
-        if self.shuffle: idxs = self.shuffle_fn(idxs)
+        # if self.shuffle: idxs = self.shuffle_fn(idxs)
         return idxs
 
     def sample(self):
@@ -440,8 +439,9 @@ class DataLoaderX:
     def create_batch(self, b): return (fa_collate,fa_convert)[self.prebatched](b)
 
     def __iter__(self):
-        self.randomize()
+        # self.randomize()
         self.__idxs=self.get_idxs() # called in context of main process (not workers/subprocesses)
+        print(self.__idxs)
         for b in _loaders[self.fake_l.num_workers==0](self.fake_l):
             if self.device is not None: b = to_device(b, self.device)
             yield self.after_batch(b)

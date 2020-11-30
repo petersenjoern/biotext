@@ -36,7 +36,7 @@ if __name__ == "__main__":
         "this is not a very long effort in this assessment",
         "this is a hba1c above 3"
     ]
-    text = df["text"].tolist()[:6]
+    text = df["text"].tolist()[:2]
 
     # call the tokenizer
     # for t in tok(text):
@@ -46,10 +46,10 @@ if __name__ == "__main__":
     x=[num.encode(t) for t in tok(text)]
     # print(x)
 
-    bs=2
+    bs=3
     sl=3
     ints = L([0,1,2,3,4],[5,6,7,8,9,10],[11,12,13,14,15,16,17,18],[19,20],[21,22]).map(tensor)
-    ints = x
+    # ints = x
     dl = LMDataLoaderX(ints, bs=bs, seq_len=sl)
     for x,y in dl:
         print(f'This is x: {x}')

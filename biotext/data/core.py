@@ -361,7 +361,7 @@ class _FakeLoader:
 
     def __iter__(self):
         print(f"3. iterate the yielded _loaders object, with create_batches")
-        print(f"{[x for x in iter(self.d.create_batches(self.d.sample()))]}")
+        # main function that is executed, create batches
         return iter(self.d.create_batches(self.d.sample()))
 
     @property
@@ -419,16 +419,22 @@ class DataLoaderX:
     def prebatched(self): return self.bs is None
     # def randomize(self): self.rng = random.Random(self.rng.randint(0,2**32-1))
     def chunkify(self, b):
-        print(f"chunkify: {[b for b in chunked(b, self.bs, self.drop_last)]}")
+        # print(f"chunkify: {[b for b in chunked(b, self.bs, self.drop_last)]}")
         return b if self.prebatched else chunked(b, self.bs, self.drop_last)
     
     def create_batches(self, samps):
-        print(f"5. create_batches: make iter(dataset)")
+        # samps is list of idxs/samples: [0,1,2,3] equal to number of tensors above
+        # dataset is list of [tensor(num, num, num, num), tensor(num...)]
         self.it = iter(self.dataset) if self.dataset is not None else None
-        print(f"5. iter(dataset): {[t for t in self.it]}")
-        print(f"5. samples are: {[s for s in samps]}")
+        # do_item => create_item() from LMDataLoader() 
+        # create_item has logic for calculating and splitting into LM requires tensors
         res = filter(lambda o:o is not None, map(self.do_item, samps))
-        # print(f"print res: {[x for x in [map(self.do_batch, self.chunkify(res))]]}")
+        # The result is [tuple(tensor([0,1,2]), tensor([1,2,3]))]
+        # This list of tuples needs to created into the correct chunk
+        # with chunkify a list of list is returned:
+        # [[(tuple(tensor([0,1,2]), tensor(1,2,3))], [tuple(....)]]
+        # Finally, the chunks (iterater) needs to be batched 
+        # (do_batch => create_batch(chunkify res)) with pytorch collate
         yield from map(self.do_batch, self.chunkify(res))
 
     def do_item(self, s):
@@ -452,7 +458,9 @@ class DataLoaderX:
         print(f"do_batch: {self.create_batch(self.before_batch(b)), b}")
         return self.retain(self.create_batch(self.before_batch(b)), b)
     def retain(self, res, b):  return res
-    def create_batch(self, b): return (fa_collate,fa_convert)[self.prebatched](b)
+    def create_batch(self, b):
+        print(f'do_batch => create_batch{(fa_collate,fa_convert)[self.prebatched](b)}')
+        return (fa_collate,fa_convert)[self.prebatched](b)
 
     def __iter__(self):
         # self.randomize()
@@ -487,8 +495,11 @@ class LMDataLoaderX(DataLoaderX):
     def create_item(self, seq):
         if seq>=self.n: raise IndexError
         sl = self.last_len if seq//self.bs==self.n_batches-1 else self.seq_len
+        print(f"6. create_item sl: {sl}")
         st = (seq%self.bs)*self.bl + (seq//self.bs)*self.seq_len
+        print(f"6. create_item st: {st}")
         txt = self.chunks[st : st+sl+1]
-        print(f"6. create_item: {tensor(txt[:-1]),txt[1:]}")
+        print(f"6. create_item txt: {txt}")
+        print(f"6. create_item tensor: {tensor(txt[:-1]),txt[1:]}")
         return tensor(txt[:-1]),txt[1:]
 

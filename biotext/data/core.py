@@ -361,6 +361,7 @@ class _FakeLoader:
 
     def __iter__(self):
         print(f"3. iterate the yielded _loaders object, with create_batches")
+        print(f"{[x for x in iter(self.d.create_batches(self.d.sample()))]}")
         return iter(self.d.create_batches(self.d.sample()))
 
     @property
@@ -425,9 +426,9 @@ class DataLoaderX:
         print(f"5. create_batches: make iter(dataset)")
         self.it = iter(self.dataset) if self.dataset is not None else None
         print(f"5. iter(dataset): {[t for t in self.it]}")
-        print(f"5. samples: {[s for s in samps]}")
+        print(f"5. samples are: {[s for s in samps]}")
         res = filter(lambda o:o is not None, map(self.do_item, samps))
-        print(f"print res: {[r for r in res]}")
+        # print(f"print res: {[x for x in [map(self.do_batch, self.chunkify(res))]]}")
         yield from map(self.do_batch, self.chunkify(res))
 
     def do_item(self, s):
@@ -444,7 +445,7 @@ class DataLoaderX:
 
     def sample(self):
         print(f"4. prepare sample")
-        print(f"4. {[b for i,b in enumerate(self.__idxs) if i//(self.bs or 1)%self.num_workers==self.offs]}")
+        print(f"4. sample are: {[b for i,b in enumerate(self.__idxs) if i//(self.bs or 1)%self.num_workers==self.offs]}")
         return (b for i,b in enumerate(self.__idxs) if i//(self.bs or 1)%self.num_workers==self.offs)
 
     def do_batch(self, b):

@@ -36,7 +36,7 @@ if __name__ == "__main__":
         "this is not a very long effort in this assessment",
         "this is a hba1c above 3"
     ]
-    text = df["text"].tolist()[:2]
+    text = df["text"].tolist()[:6]
 
     # call the tokenizer
     # for t in tok(text):
@@ -55,9 +55,9 @@ if __name__ == "__main__":
         print(f'This is x: {x}')
         for tx in x:
             print(f'This is x decoded: {num.decode(tx)}')
-    #     print(f'This is y: {y}')
-    #     for ty in y:
-    #         print(f'This is y decoded: {num.decode(ty)}')
+        print(f'This is y: {y}')
+        for ty in y:
+            print(f'This is y decoded: {num.decode(ty)}')
 
     # Abstract both into a class and do behind the scene with __getitem__
     # ds = Datasets(items=text, tok=tok, num=num)

@@ -351,16 +351,18 @@ class _FakeLoader:
     _IterableDataset_len_called,_auto_collation,collate_fn,drop_last = None,False,noops,False
     _index_sampler,generator,prefetch_factor  = Inf.count,None,2
     dataset_kind = _dataset_kind = _DatasetKind.Iterable
-    def __init__(self, d, pin_memory, num_workers, timeout, persistent_workers):
+    def __init__(self, d, pin_memory, num_workers, timeout, persistent_workers, verbose):
         self.dataset,self.default,self.worker_init_fn = self,d,_wif
         self.d = d #This is the LMDataLoaderX(DataLoaderX) class
         self.pin_memory = pin_memory
         self.num_workers= num_workers
         self.timeout=timeout
         self.persistent_workers=persistent_workers
+        self.verbose = verbose
 
     def __iter__(self):
-        print(f"3. iterate the yielded _loaders object, with create_batches")
+        if self.verbose:
+            print(f"3. iterate the yielded _loaders object, with create_batches")
         # main function that is executed, create batches
         return iter(self.d.create_batches(self.d.sample()))
 
@@ -394,7 +396,7 @@ def fa_convert(t):
 class DataLoaderX:
     _noop_methods = 'wif before_iter after_item before_batch after_batch after_iter'.split()
     for o in _noop_methods: exec(f"def {o}(self, x=None, *args, **kwargs): return x")
-    def __init__(self, dataset=None, bs=None, num_workers=0, pin_memory=False, timeout=0, batch_size=None,
+    def __init__(self, verbose=False, dataset=None, bs=None, num_workers=0, pin_memory=False, timeout=0, batch_size=None,
     shuffle=False, drop_last=False, indexed=None, n=None, device=None, persistent_workers=False, **kwargs):
         
         if batch_size is not None: bs = batch_size # PyTorch compatibility
@@ -413,7 +415,9 @@ class DataLoaderX:
         self.num_workers = num_workers
         self.device = device
         self.rng,self.num_workers,self.offs = random.Random(random.randint(0,2**32-1)),1,0
-        self.fake_l = _FakeLoader(self, pin_memory, num_workers, timeout, persistent_workers=persistent_workers)
+        self.fake_l = _FakeLoader(self, pin_memory, num_workers, timeout, 
+            persistent_workers=persistent_workers, verbose=verbose)
+        self.verbose = verbose
 
     @property
     def prebatched(self): return self.bs is None
@@ -441,31 +445,36 @@ class DataLoaderX:
         return self.after_item(self.create_item(s))
 
     def get_idxs(self):
-        print(f"1. create idxs from n")
-        print(f"1. n is {self.n}")
+
         idxs = Inf.count if self.indexed else Inf.nones
         if self.n is not None: idxs = list(itertools.islice(idxs, self.n))
         # if self.shuffle: idxs = self.shuffle_fn(idxs)
-        print(f"1. idxs are: {idxs}")
+        if self.verbose:
+            print(f"1. create idxs from n")
+            print(f"1. n is {self.n}")
+            print(f"1. idxs are: {idxs}")
         return idxs
 
     def sample(self):
-        print(f"4. prepare sample")
-        print(f"4. sample are: {[b for i,b in enumerate(self.__idxs) if i//(self.bs or 1)%self.num_workers==self.offs]}")
+        if self.verbose:
+            print(f"4. prepare sample")
+            print(f"4. sample are: {[b for i,b in enumerate(self.__idxs) if i//(self.bs or 1)%self.num_workers==self.offs]}")
         return (b for i,b in enumerate(self.__idxs) if i//(self.bs or 1)%self.num_workers==self.offs)
 
     def do_batch(self, b):
-        print(f"do_batch: {self.create_batch(self.before_batch(b)), b}")
         return self.retain(self.create_batch(self.before_batch(b)), b)
+
     def retain(self, res, b):  return res
     def create_batch(self, b):
-        print(f'do_batch => create_batch{(fa_collate,fa_convert)[self.prebatched](b)}')
+        if self.verbose:
+            print(f'do_batch => create_batch{(fa_collate,fa_convert)[self.prebatched](b)}')
         return (fa_collate,fa_convert)[self.prebatched](b)
 
     def __iter__(self):
         # self.randomize()
         self.__idxs=self.get_idxs() # called in context of main process (not workers/subprocesses)
-        print(f"2. create _loaders: {_loaders[self.fake_l.num_workers==0](self.fake_l)} and yield them")
+        if self.verbose:
+            print(f"2. create _loaders: {_loaders[self.fake_l.num_workers==0](self.fake_l)} and yield them")
         for b in _loaders[self.fake_l.num_workers==0](self.fake_l):
             if self.device is not None: b = to_device(b, self.device)
             yield self.after_batch(b)
@@ -474,12 +483,13 @@ class DataLoaderX:
 
 class LMDataLoaderX(DataLoaderX):
     def __init__(self, dataset, cache=2, lens=None, bs=64, seq_len=72,
-        num_workers=0, **kwargs):
+        num_workers=0, verbose=False, **kwargs):
         self.items = ReindexCollection(dataset, cache=cache, tfm=_maybe_first)
         if lens is None: lens = [len(o) for o in self.items]
         self.lens = lens
         self.seq_len = seq_len
         self.bs = bs
+        self.verbose = verbose
 
         corpus = round_multiple(sum(lens)-1, bs, round_down=True)
         self.bl = corpus//bs #bl stands for batch length
@@ -487,7 +497,7 @@ class LMDataLoaderX(DataLoaderX):
         self.last_len = self.bl - (self.n_batches-1)*seq_len
         self.n = self.n_batches*bs
         self.make_chunks()
-        super().__init__(dataset=dataset, bs=bs, num_workers=num_workers, **kwargs)
+        super().__init__(verbose=verbose, dataset=dataset, bs=bs, num_workers=num_workers, **kwargs)
 
     def make_chunks(self):
         self.chunks = Chunks(self.items, self.lens)
@@ -495,11 +505,12 @@ class LMDataLoaderX(DataLoaderX):
     def create_item(self, seq):
         if seq>=self.n: raise IndexError
         sl = self.last_len if seq//self.bs==self.n_batches-1 else self.seq_len
-        print(f"6. create_item sl: {sl}")
         st = (seq%self.bs)*self.bl + (seq//self.bs)*self.seq_len
-        print(f"6. create_item st: {st}")
         txt = self.chunks[st : st+sl+1]
-        print(f"6. create_item txt: {txt}")
-        print(f"6. create_item tensor: {tensor(txt[:-1]),txt[1:]}")
+        if self.verbose:
+            print(f"6. create_item st: {st}")
+            print(f"6. create_item sl: {sl}")
+            print(f"6. create_item txt: {txt}")
+            print(f"6. create_item tensor: {tensor(txt[:-1]),txt[1:]}")
         return tensor(txt[:-1]),txt[1:]
 

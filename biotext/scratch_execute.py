@@ -32,11 +32,18 @@ if __name__ == "__main__":
 
     # Call tokenizer and numericalizer
     text = [
-        "operator technique is not promising and therefore clinically irrelevant",
-        "this is not a very long effort in this assessment",
-        "this is a hba1c above 3"
+        "The investigators aimed to compare the block characteristics of the single operator 'jedi grip' technique and the conventional double operator technique.",
+        "The purpose of the study is to characterize the safety and pharmacokinetic (PK) profile of UCB6114.",
+        "The primary objective of the study aims to evaluate serological assays of virus Covid-19.",
+        "The purpose of this study is to identify the therapeutic effects of family workshops on speech and language developmentally delayed children and their family",
+        "A Phase 1 Study to Compare the Safety, Pharmacokinetics and Pharmacodynamics of HIP1802 to HGP1705 in Healthy Volunteers",
+        "The purpose of this randomized cross-over clinical trial is to examine the effects of Mediterranean diet based intervention on inflammation, metabolic risk and microbiome in patients with dyslipidemia.",
+        "fixation of FGG with sutures alone is not sufficient,we use cyanoacrylate beside sutures for fixation",
+        "Evaluate the effectiveness of mesh reinforcement in high-risk patients to prevent incisional hernia.",
+        "Dual objectives of increased efficacy compared to currently available SoC RA drugs and maintaining a favourable benefit - risk relationship.",
+        "This study was conducted on neonates needing intubation; Group A,: the ETT insertion depth was estimated according to the OHL method. Group B,: the ETT insertion depth was estimated according to the 7-8-9 method."
     ]
-    text = df["text"].tolist()[:2]
+    text = df["text"].tolist()[:7]
 
     # call the tokenizer
     # for t in tok(text):
@@ -49,8 +56,8 @@ if __name__ == "__main__":
     bs=3
     sl=3
     ints = L([0,1,2,3,4],[5,6,7,8,9,10],[11,12,13,14,15,16,17,18],[19,20],[21,22]).map(tensor)
-    # ints = x
-    dl = LMDataLoaderX(ints, bs=bs, seq_len=sl)
+    ints = x
+    dl = LMDataLoaderX(ints, bs=bs, seq_len=sl, verbose=True)
     for x,y in dl:
         print(f'This is x: {x}')
         for tx in x:
@@ -59,11 +66,6 @@ if __name__ == "__main__":
         for ty in y:
             print(f'This is y decoded: {num.decode(ty)}')
 
-    # Abstract both into a class and do behind the scene with __getitem__
-    # ds = Datasets(items=text, tok=tok, num=num)
-    # for i in range(len(ds)):
-    #     print(ds[i])
-    
 
     
 # %%

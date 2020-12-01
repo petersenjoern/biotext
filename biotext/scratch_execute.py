@@ -43,7 +43,7 @@ if __name__ == "__main__":
         "Dual objectives of increased efficacy compared to currently available SoC RA drugs and maintaining a favourable benefit - risk relationship.",
         "This study was conducted on neonates needing intubation; Group A,: the ETT insertion depth was estimated according to the OHL method. Group B,: the ETT insertion depth was estimated according to the 7-8-9 method."
     ]
-    text = df["text"].tolist()[:7]
+    text = df["text"].tolist()[:100]
 
     # call the tokenizer
     # for t in tok(text):
@@ -53,8 +53,8 @@ if __name__ == "__main__":
     x=[num.encode(t) for t in tok(text)]
     # print(x)
 
-    bs=8
-    sl=4
+    bs=32
+    sl=3
     ints = L([0,1,2,3,4],[5,6,7,8,9,10],[11,12,13,14,15,16,17,18],[19,20],[21,22]).map(tensor)
     ints = x
     dl = LMDataLoaderX(ints, bs=bs, seq_len=sl, verbose=False)

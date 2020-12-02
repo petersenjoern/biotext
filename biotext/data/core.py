@@ -8,6 +8,10 @@ _loaders = (_MultiProcessingDataLoaderIter,_SingleProcessDataLoaderIter)
 import multiprocessing
 from torch.utils.data import get_worker_info
 from fastai.torch_core import default_device
+from fastai.text.models.core import get_language_model, _model_meta
+from fastai.text.models.awdlstm import AWD_LSTM
+from fastai.losses import CrossEntropyLossFlat
+from fastai.text.learner import LMLearner
 from torch.utils.data._utils.collate import default_collate,default_convert
 import typing
 import sentencepiece as spm
@@ -167,6 +171,7 @@ class Numericalize():
     def encode(self, o): return tensor([self.o2i[o_] for o_ in o])
     def __call__(self, o): return tensor([self.o2i[o_] for o_ in o])
     def decode(self, o): return [self.vocab[o_] for o_ in o]
+    def return_vocab(self): return self.vocab
 
         
 class Datasets(Dataset):
@@ -514,3 +519,22 @@ class LMDataLoaderX(DataLoaderX):
             print(f"6. create_item tensor: {tensor(txt[:-1]),txt[1:]}")
         return tensor(txt[:-1]),txt[1:]
 
+
+def language_model_learner(dls, vocab, arch=AWD_LSTM, config=None, drop_mult=1., backwards=False, pretrained=True, pretrained_fnames=None, **kwargs):
+    "Create a `Learner` with a language model from `dls` and `arch`."
+    model = get_language_model(arch, len(vocab), config=config, drop_mult=drop_mult)
+    meta = _model_meta[arch]
+    learn = LMLearner(dls, model, loss_func=CrossEntropyLossFlat(), splitter=meta['split_lm'], **kwargs)
+    # url = 'url_bwd' if backwards else 'url'
+    # if pretrained or pretrained_fnames:
+    #     if pretrained_fnames is not None:
+    #         fnames = [learn.path/learn.model_dir/f'{fn}.{ext}' for fn,ext in zip(pretrained_fnames, ['pth', 'pkl'])]
+    #     else:
+    #         if url not in meta:
+    #             warn("There are no pretrained weights for that architecture yet!")
+    #             return learn
+    #         model_path = untar_data(meta[url] , c_key='model')
+    #         try: fnames = [list(model_path.glob(f'*.{ext}'))[0] for ext in ['pth', 'pkl']]
+    #         except IndexError: print(f'The model in {model_path} is incomplete, download again'); raise
+    #     learn = learn.load_pretrained(*fnames)
+    return learn

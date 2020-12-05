@@ -89,7 +89,6 @@ if __name__ == "__main__":
         drop_mult=0.3,
         metrics=[accuracy, Perplexity()]
         ).to_fp16()
-    print(learn.model)
 
     
 # %%

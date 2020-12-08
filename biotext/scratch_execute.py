@@ -64,31 +64,33 @@ if __name__ == "__main__":
 
     # call the numericalizer based on tokenizer output
     x=[num.encode(t) for t in tok(text)]
-    # print(x)
-
-    bs=8
-    sl=4
-    ints = L([0,1,2,3,4],[5,6,7,8,9,10],[11,12,13,14,15,16,17,18],[19,20],[21,22]).map(tensor)
-    ints = x
-    dl = LMDataLoaderX(ints, bs=bs, seq_len=sl, verbose=False)
-    for x,y in dl:
-        print(f'This is x: {x}')
-        for tx in x:
-            print(f'This is x decoded: {num.decode(tx)}')
-        print(f'This is y: {y}')
-        for ty in y:
-            print(f'This is y decoded: {num.decode(ty)}')
+    print(x)
 
 
-    learn = language_model_learner(
-        dls=dl,
-        vocab=vocab,
-        arch=AWD_LSTM,
-        config=awd_lstm_lm_config,
-        pretrained=False,
-        drop_mult=0.3,
-        metrics=[accuracy, Perplexity()]
-        ).to_fp16()
+    ## To-be deleted. Create own LMDataLoader, simplify
+    # bs=8
+    # sl=4
+    # ints = L([0,1,2,3,4],[5,6,7,8,9,10],[11,12,13,14,15,16,17,18],[19,20],[21,22]).map(tensor)
+    # ints = x
+    # dl = LMDataLoaderX(ints, bs=bs, seq_len=sl, verbose=False)
+    # for x,y in dl:
+    #     print(f'This is x: {x}')
+    #     for tx in x:
+    #         print(f'This is x decoded: {num.decode(tx)}')
+    #     print(f'This is y: {y}')
+    #     for ty in y:
+    #         print(f'This is y decoded: {num.decode(ty)}')
+
+
+    # learn = language_model_learner(
+    #     dls=dl,
+    #     vocab=vocab,
+    #     arch=AWD_LSTM,
+    #     config=awd_lstm_lm_config,
+    #     pretrained=False,
+    #     drop_mult=0.3,
+    #     metrics=[accuracy, Perplexity()]
+    #     ).to_fp16()
 
     
 # %%
